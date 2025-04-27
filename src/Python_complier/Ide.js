@@ -30,9 +30,11 @@ function CodeLearningPlatform() {
   const [aiThinking, setAiThinking] = useState(false);
   const chatEndRef = useRef(null);
 
-  const API_KEY = "YOUR_GOOGLE_AI_API_KEY"; 
+  const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+  console.log("API Key available:", API_KEY ? "Yes (length: " + API_KEY.length + ")" : "No");
+
   const genAI = new GoogleGenerativeAI(API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   
   const formatChatHistory = (messages) => {
     return messages
@@ -285,6 +287,7 @@ function CodeLearningPlatform() {
     setAiThinking(true);
     
     try {
+      
       const history = formatChatHistory(chatMessages);
       const chatSession = model.startChat({
         history: history,
@@ -333,10 +336,16 @@ function CodeLearningPlatform() {
         { role: 'assistant', content: responseText }
       ]);
     } catch (error) {
+      let errorMessage = "Sorry, I encountered an error processing your request.";
+      if (error.message?.includes("API key")) {
+        errorMessage += " There seems to be an issue with the API key.";
+      } else if (error.message?.includes("quota")) {
+        errorMessage += " You may have exceeded your API quota.";
+      }
       console.error("Error with AI response:", error);
       setChatMessages(prevMessages => [
         ...prevMessages, 
-        { role: 'assistant', content: "Sorry, I encountered an error processing your request. Please try again." }
+        { role: 'assistant', content: errorMessage }
       ]);
     } finally {
       setAiThinking(false);
