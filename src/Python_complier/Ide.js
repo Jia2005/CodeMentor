@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function CodeLearningApp() {
   return (
@@ -26,8 +27,22 @@ function CodeLearningPlatform() {
     { role: 'system', content: 'Hello! I can help you with Python programming. Ask me about the code, or for help converting other languages to Python.' }
   ]);
   const [userInput, setUserInput] = useState('');
+  const [aiThinking, setAiThinking] = useState(false);
   const chatEndRef = useRef(null);
+
+  const API_KEY = "YOUR_GOOGLE_AI_API_KEY"; 
+  const genAI = new GoogleGenerativeAI(API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
   
+  const formatChatHistory = (messages) => {
+    return messages
+      .filter(msg => msg.role !== 'system')
+      .map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      }));
+  };
+
   useEffect(() => {
     if (chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -64,11 +79,11 @@ function CodeLearningPlatform() {
         setOutput('[Output would appear here]');
       }
       
-      generateExplanations(code);
+      await generateAIExplanations(code);
     } catch (error) {
       setErrors({
         message: error.message,
-        suggestions: getSuggestions(error)
+        suggestions: await getAISuggestions(error, code)
       });
     } finally {
       setIsExecuting(false);
@@ -101,22 +116,30 @@ function CodeLearningPlatform() {
     return false;
   };
   
-  const getSuggestions = (error) => {
+  const getAISuggestions = async (error, code) => {
     if (error.message.includes('only accepts Python')) {
       return "This compiler only works with Python code. You can use our chatbot to help convert your code to Python.";
-    } else if (error.message.includes('name') && error.message.includes('is not defined')) {
-      return "It looks like you're using a variable that hasn't been defined. Check your variable names.";
-    } else if (error.message.includes('IndentationError')) {
-      return "Python is sensitive to indentation. Make sure your code blocks are properly indented.";
-    } else if (error.message.includes('SyntaxError')) {
-      return "There's a syntax error in your code. Check for missing colons, parentheses, or other syntax elements.";
     }
-    return "Check your code syntax and logic.";
+    
+    try {
+      const prompt = `I have a Python code that generated this error: "${error.message}"
+      
+      Here's the code:
+      ${code}
+      
+      Provide a brief, helpful suggestion to fix this error. Keep it under 100 characters if possible. Don't explain why the error happened, just give a clear, actionable fix.`;
+      
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (aiError) {
+      console.error("Error getting AI suggestions:", aiError);
+      return "Check your code syntax and logic.";
+    }
   };
   
-  const generateExplanations = (sourceCode) => {
+  const generateAIExplanations = async (sourceCode) => {
     const lines = sourceCode.split('\n');
-    const explanations = lines.map((line) => {
+    const basicExplanations = lines.map((line) => {
       if (line.trim() === '') {
         return { 
           line, 
@@ -207,83 +230,117 @@ function CodeLearningPlatform() {
         color: "text-gray-700" 
       };
     });
-    setExplanationData(explanations);
+    
+    try {
+      const prompt = `Analyze this Python code line by line:
+      
+      ${sourceCode}
+      
+      For each non-empty line, provide:
+      1. A brief explanation (5-10 words)
+      2. A detailed explanation about what the line does (max 50 words)
+      
+      Format your response as JSON array with objects having these properties:
+      - lineIndex: the index number (integer starting at 0)
+      - shortExplanation: brief explanation
+      - detailedExplanation: detailed explanation
+      
+      Only include non-empty lines. Return ONLY the JSON, nothing else.`;
+      
+      const result = await model.generateContent(prompt);
+      let aiExplanations;
+      
+      try {
+        aiExplanations = JSON.parse(result.response.text());
+      } catch (parseError) {
+        console.error("Error parsing AI response:", parseError);
+        setExplanationData(basicExplanations);
+        return;
+      }
+      
+      const enhancedExplanations = basicExplanations.map((basic, index) => {
+        const aiExplanation = aiExplanations.find(ai => ai.lineIndex === index);
+        if (aiExplanation && !basic.skip) {
+          return {
+            ...basic,
+            explanation: aiExplanation.shortExplanation || basic.explanation,
+            details: aiExplanation.detailedExplanation || basic.details
+          };
+        }
+        return basic;
+      });
+      
+      setExplanationData(enhancedExplanations);
+    } catch (error) {
+      console.error("Error generating AI explanations:", error);
+      setExplanationData(basicExplanations); 
+    }
   };
-
+  
   const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     const newMessage = { role: 'user', content: userInput };
     setChatMessages(prevMessages => [...prevMessages, newMessage]);
     setUserInput('');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    setAiThinking(true);
     
-    let response;
-    if (userInput.toLowerCase().includes('convert') || userInput.toLowerCase().includes('translate')) {
-      response = {
-        role: 'assistant',
-        content: "I can help convert that code to Python. What language is it written in? Please share the code you'd like to convert."
-      };
+    try {
+      const history = formatChatHistory(chatMessages);
+      const chatSession = model.startChat({
+        history: history,
+        generationConfig: {
+          maxOutputTokens: 1000,
+          temperature: 0.2
+        }
+      });
       
-      if (userInput.includes('{') || userInput.includes(';') || userInput.includes('System.out')) {
-        const pythonCode = convertToPython(userInput);
-        response.content = `Here's the Python equivalent:\n\n\`\`\`python\n${pythonCode}\n\`\`\`\n\nWould you like me to explain how it works or would you like to run this code?`;
+      let prompt = userInput;
+      
+      if (userInput.toLowerCase().includes('convert') || 
+          userInput.toLowerCase().includes('translate')) {
+        prompt = `Act as a Python expert. Convert the code in my query to proper Python code. 
+                 Show just the converted code with minimal explanation.
+                 
+                 ${userInput}`;
+      } 
+      else if (userInput.toLowerCase().includes('explain') && 
+               (userInput.toLowerCase().includes('code') || userInput.toLowerCase().includes('this'))) {
+        prompt = `Explain this Python code in clear, simple terms:
+                 
+                 ${code}
+                 
+                 ${userInput}`;
       }
-    } else if (userInput.toLowerCase().includes('explain') && (userInput.toLowerCase().includes('code') || userInput.toLowerCase().includes('this'))) {
-      response = {
-        role: 'assistant',
-        content: `Let me explain the current code:\n\nThis Python code defines a function called \`calculate_sum\` that takes two parameters (a and b) and returns their sum. It then calls this function with values 5 and 7, stores the result in a variable, and prints it out. The output will be "The sum is: 12".`
-      };
-    } else {
-      response = {
-        role: 'assistant',
-        content: generateChatbotResponse(userInput)
-      };
+      else if (userInput.toLowerCase().includes('debug') || 
+               userInput.toLowerCase().includes('fix') || 
+               userInput.toLowerCase().includes('error')) {
+        prompt = `Debug this Python code and suggest fixes:
+                 
+                 ${code}
+                 
+                 ${userInput}`;
+      }
+      else {
+        prompt = `As a Python teaching assistant, respond to this question: ${userInput}`;
+      }
+      
+      const result = await chatSession.sendMessage(prompt);
+      const response = result.response;
+      const responseText = response.text();
+      
+      setChatMessages(prevMessages => [
+        ...prevMessages, 
+        { role: 'assistant', content: responseText }
+      ]);
+    } catch (error) {
+      console.error("Error with AI response:", error);
+      setChatMessages(prevMessages => [
+        ...prevMessages, 
+        { role: 'assistant', content: "Sorry, I encountered an error processing your request. Please try again." }
+      ]);
+    } finally {
+      setAiThinking(false);
     }
-    
-    setChatMessages(prevMessages => [...prevMessages, response]);
-  };
-
-  const convertToPython = (codeString) => {
-    if (codeString.includes('System.out.println')) {
-      return codeString
-        .replace(/System\.out\.println\((.*)\);/g, 'print($1)')
-        .replace(/public static void main\(String\[\] args\) \{/g, 'def main():')
-        .replace(/int /g, '')
-        .replace(/String /g, '')
-        .replace(/;/g, '')
-        .replace(/\}/g, '');
-    }
-    
-    if (codeString.includes('console.log') || codeString.includes('let ') || codeString.includes('const ')) {
-      return codeString
-        .replace(/console\.log\((.*)\);/g, 'print($1)')
-        .replace(/const |let |var /g, '')
-        .replace(/function (.*)\((.*)\) \{/g, 'def $1($2):')
-        .replace(/;/g, '')
-        .replace(/\}/g, '');
-    }
-    
-    return "# Here would be the Python equivalent of your code\n# I've simplified the conversion process for this demo";
-  };
-
-  const generateChatbotResponse = (query) => {
-    if (query.toLowerCase().includes('help') || query.toLowerCase().includes('what can you do')) {
-      return "I can help you with Python programming in several ways:\n\n1. Answer questions about Python syntax and concepts\n2. Explain the code you're working on\n3. Convert code from other languages to Python\n4. Suggest improvements to your code\n5. Help debug your code\n\nJust let me know what you need help with!";
-    }
-    
-    if (query.toLowerCase().includes('function') || query.toLowerCase().includes('def')) {
-      return "In Python, you define functions using the `def` keyword followed by the function name and parameters. For example:\n\n```python\ndef greet(name):\n    return f\"Hello, {name}!\"\n```\n\nYou can then call the function using: `greet(\"Alice\")`";
-    }
-    
-    if (query.toLowerCase().includes('list') || query.toLowerCase().includes('array')) {
-      return "Python lists are versatile data structures that can store multiple items. Here's how you can use them:\n\n```python\n# Create a list\nnumbers = [1, 2, 3, 4, 5]\n\n# Access elements\nfirst_item = numbers[0]  # Lists are zero-indexed\n\n# Add items\nnumbers.append(6)  # Adds to the end\n\n# Slicing\nsubset = numbers[1:4]  # Gets items at index 1, 2, and 3\n```";
-    }
-    
-    if (query.toLowerCase().includes('loop') || query.toLowerCase().includes('for') || query.toLowerCase().includes('while')) {
-      return "Python has two main loop structures:\n\n1. For loops:\n```python\nfor i in range(5):\n    print(i)  # Prints 0, 1, 2, 3, 4\n\nfor item in my_list:\n    print(item)  # Iterates through each item\n```\n\n2. While loops:\n```python\ncount = 0\nwhile count < 5:\n    print(count)\n    count += 1\n```";
-    }
-    
-    return "I'd be happy to help with your Python questions. Could you provide more details about what you're trying to learn or what specific help you need with your code?";
   };
 
   return (
@@ -381,6 +438,17 @@ function CodeLearningPlatform() {
                     </div>
                   </div>
                 ))}
+                {aiThinking && (
+                  <div className="mb-3 p-3 rounded-lg bg-white border border-gray-200 mr-8">
+                    <div className="font-semibold mb-1">Assistant</div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-100"></div>
+                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-200"></div>
+                      <span className="text-gray-500 text-sm">Thinking...</span>
+                    </div>
+                  </div>
+                )}
                 <div ref={chatEndRef} />
               </div>
               <div className="chat-input-area flex">
