@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function CodeLearningApp() {
@@ -23,6 +24,7 @@ function CodeLearningPlatform() {
   const [explanationData, setExplanationData] = useState([]);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
+  const [chatSize, setChatSize] = useState('normal'); // 'normal', 'large', 'small'
   const [chatMessages, setChatMessages] = useState([
     { role: 'system', content: 'Hello! I can help you with Python programming. Ask me about the code, or for help converting other languages to Python.' }
   ]);
@@ -32,7 +34,6 @@ function CodeLearningPlatform() {
 
   const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
   console.log("API Key available:", API_KEY ? "Yes (length: " + API_KEY.length + ")" : "No");
-
   const genAI = new GoogleGenerativeAI(API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   
@@ -352,6 +353,19 @@ function CodeLearningPlatform() {
     }
   };
 
+  const toggleChatSize = () => {
+    if (chatSize === 'normal') {
+      setChatSize('large');
+    } else {
+      setChatSize('normal');
+    }
+  };
+
+  const chatSizeClasses = {
+    normal: "w-[600px] h-[400px]",
+    large: "w-[800px] h-[600px]"
+  };
+
   return (
     <div className="code-learning-platform">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -408,76 +422,12 @@ function CodeLearningPlatform() {
               >
                 Animation
               </button>
-              <button 
-                onClick={() => setShowChatbot(!showChatbot)}
-                className="py-2 px-4 rounded bg-green-500 hover:bg-green-600 text-white"
-              >
-                {showChatbot ? 'Hide Assistant' : 'Show Assistant'}
-              </button>
             </div>
           </div>
         </div>
         
         <div className="bg-white rounded-lg shadow-md p-4">
-          {showChatbot ? (
-            <div className="chatbot-container h-full">
-              <h2 className="text-lg font-semibold mb-3">Python Assistant</h2>
-              <div className="chat-messages bg-gray-50 p-3 rounded-lg mb-3 overflow-auto h-96">
-                {chatMessages.map((msg, index) => (
-                  <div 
-                    key={index} 
-                    className={`mb-3 p-3 rounded-lg ${
-                      msg.role === 'user' 
-                        ? 'bg-indigo-100 ml-8' 
-                        : 'bg-white border border-gray-200 mr-8'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">
-                      {msg.role === 'user' ? 'You' : 'Assistant'}
-                    </div>
-                    <div className="whitespace-pre-wrap">
-                      {msg.content.includes('```') 
-                        ? msg.content.split('```').map((part, i) => 
-                            i % 2 === 1 
-                              ? <pre key={i} className="bg-gray-800 p-2 rounded text-white text-sm my-2 overflow-x-auto">{part.replace(/^python\n/, '')}</pre> 
-                              : <span key={i}>{part}</span>
-                          )
-                        : msg.content
-                      }
-                    </div>
-                  </div>
-                ))}
-                {aiThinking && (
-                  <div className="mb-3 p-3 rounded-lg bg-white border border-gray-200 mr-8">
-                    <div className="font-semibold mb-1">Assistant</div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
-                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-100"></div>
-                      <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-200"></div>
-                      <span className="text-gray-500 text-sm">Thinking...</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-              <div className="chat-input-area flex">
-                <input 
-                  type="text" 
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask about Python or request code conversion..."
-                  className="flex-grow border border-gray-300 rounded-l p-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <button 
-                  onClick={handleSendMessage}
-                  className="bg-indigo-600 text-white p-2 rounded-r hover:bg-indigo-700"
-                >
-                  Send
-                </button>
-              </div>
-            </div>
-          ) : viewMode === 'output' ? (
+          {viewMode === 'output' ? (
             <div>
               <h2 className="text-lg font-semibold mb-3">Output</h2>
               {errors ? (
@@ -520,6 +470,109 @@ function CodeLearningPlatform() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="fixed bottom-4 right-4 z-50">
+        {!showChatbot ? (
+          <button 
+            onClick={() => setShowChatbot(true)}
+            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center"
+          >
+            <div>
+              <img 
+                src="/api/placeholder/48/48" 
+                alt="Chat Assistant" 
+                className="rounded-full"
+              />
+            </div>
+          </button>
+        ) : (
+          <div className={`bg-white rounded-lg shadow-xl flex flex-col ${chatSizeClasses[chatSize]} transition-all duration-300`}>
+            <div className="bg-indigo-600 text-white p-3 rounded-t-lg flex justify-between items-center">
+              <h3 className="font-medium">Python Assistant</h3>
+              <div className="flex space-x-2">
+                <button 
+                  onClick={toggleChatSize}
+                  className="p-1 hover:bg-indigo-500 rounded"
+                >
+                  {chatSize === 'large' ? (
+                    <Minimize2 />
+                  ) : (
+                    <Maximize2 />
+                  ) }
+                </button>
+                <button 
+                  onClick={() => setShowChatbot(false)}
+                  className="p-1 hover:bg-indigo-500 rounded"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="chat-messages bg-gray-50 p-3 flex-grow overflow-auto">
+              {chatMessages.map((msg, index) => (
+                <div 
+                  key={index} 
+                  className={`mb-3 p-3 rounded-lg ${
+                    msg.role === 'user' 
+                      ? 'bg-indigo-100 ml-4' 
+                      : 'bg-white border border-gray-200 mr-4'
+                  }`}
+                >
+                  <div className="font-semibold mb-1 text-sm">
+                    {msg.role === 'user' ? 'You' : 'Assistant'}
+                  </div>
+                  <div className="whitespace-pre-wrap text-sm">
+                    {msg.content.includes('```') 
+                      ? msg.content.split('```').map((part, i) => 
+                          i % 2 === 1 
+                            ? <pre key={i} className="bg-gray-800 p-2 rounded text-white text-sm my-2 overflow-x-auto">{part.replace(/^python\n/, '')}</pre> 
+                            : <span key={i}>{part}</span>
+                        )
+                      : msg.content
+                    }
+                  </div>
+                </div>
+              ))}
+              {aiThinking && (
+                <div className="mb-3 p-3 rounded-lg bg-white border border-gray-200 mr-4">
+                  <div className="font-semibold mb-1 text-sm">Assistant</div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-100"></div>
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-200"></div>
+                    <span className="text-gray-500 text-sm">Thinking...</span>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            
+            <div className="chat-input-area p-2 border-t">
+              <div className="flex">
+                <input 
+                  type="text" 
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Ask about Python..."
+                  className="flex-grow border border-gray-300 rounded-l p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button 
+                  onClick={handleSendMessage}
+                  className="bg-indigo-600 text-white p-2 rounded-r hover:bg-indigo-700"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -606,7 +659,7 @@ function CodeVisualizer({ code, explanationData }) {
   if (!explanationData.length) {
     return <p className="text-gray-500">Run your code to see animation</p>;
   }
-  
+
   return (
     <div className="code-visualizer">
       <div className="flex justify-between mb-4">
