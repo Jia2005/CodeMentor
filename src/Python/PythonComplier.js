@@ -33,16 +33,19 @@ function PythonComplier() {
       }
       
       await new Promise(resolve => setTimeout(resolve, 1000));
+      
       if (code.includes('syntax error')) {
         throw new Error('SyntaxError: invalid syntax');
       }      
       if (code.includes('undefined_variable')) {
         throw new Error("NameError: name 'undefined_variable' is not defined");
       }
-      if (code.includes('calculate_sum')) {
+      
+      const userInputCode = code;
+      if (userInputCode.includes('calculate_sum')) {
         setOutput('The sum is: 12');
-      } else if (code.includes('print(')) {
-        const match = code.match(/print\(['"](.+)['"]\)/);
+      } else if (userInputCode.includes('print(')) {
+        const match = userInputCode.match(/print\(['"](.+)['"]\)/);
         if (match) {
           setOutput(match[1]);
         } else {
@@ -278,14 +281,34 @@ function PythonComplier() {
       const newUserMessage = { role: 'user', content: message };
       setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
       
+      // Handle greetings and thanks
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
+        const greetingResponse = { 
+          role: 'assistant', 
+          content: "Hi there! 👋 It's great to chat with you. How can I help with your Python questions today?" 
+        };
+        setChatMessages(prevMessages => [...prevMessages, greetingResponse]);
+        return;
+      }
+      
+      if (lowerMessage.includes('thank') || lowerMessage.includes('thanks') || lowerMessage.includes('thx')) {
+        const thanksResponse = { 
+          role: 'assistant', 
+          content: "You're welcome! 😊 I'm happy to help. Is there anything else you'd like to know about Python?" 
+        };
+        setChatMessages(prevMessages => [...prevMessages, thanksResponse]);
+        return;
+      }
+      
       const isPythonRelated = isPythonQuestion(message);
       
       if (!isPythonRelated) {
-        const restrictedResponse = { 
+        const friendlyResponse = { 
           role: 'assistant', 
-          content: "I'm only here to help with Python-related questions. How can I assist you with your Python code?" 
+          content: "I'd love to chat about Python with you! While I specialize in Python topics, feel free to ask me anything related to coding or programming concepts. How can I help you today?" 
         };
-        setChatMessages(prevMessages => [...prevMessages, restrictedResponse]);
+        setChatMessages(prevMessages => [...prevMessages, friendlyResponse]);
         return;
       }
       
@@ -313,7 +336,7 @@ function PythonComplier() {
                  
                  ${message}
                  
-                 Keep your initial answer brief and to the point. Add "Need more details? Let me know." at the end.`;
+                 Keep your initial answer brief and to the point. Include a section at the end that starts with "EXPANDED_CONTENT:" followed by a detailed explanation. The expanded content should be comprehensive but clear.`;
       }
       else if (message.toLowerCase().includes('debug') || 
                message.toLowerCase().includes('fix') || 
@@ -324,17 +347,36 @@ function PythonComplier() {
                  
                  ${message}
                  
-                 Keep your answer short and direct. Add "Want a detailed explanation? Just ask." at the end.`;
+                 Keep your answer short and direct. Include a section at the end that starts with "EXPANDED_CONTENT:" followed by a detailed explanation of the bugs and fixes.`;
       }
       else {
-        prompt = `Respond concisely to this Python question: ${message}
+        prompt = `Respond to this Python question in a friendly, conversational way: ${message}
                  
-                 Keep your answer brief and focused. Add "Need more information? Let me know." at the end if appropriate.
-                 Use code formatting with \`backticks\` instead of bold text for code elements and syntax.`;
+                 Keep your initial answer brief and focused.
+                 Use code formatting with \`backticks\` instead of bold text for code elements and syntax.
+                 Include a section at the end that starts with "EXPANDED_CONTENT:" followed by a more detailed explanation of the concept.
+                 Be enthusiastic and encouraging in your tone.`;
       }
       
       const result = await model.generateContent(prompt);
-      const botResponse = { role: 'assistant', content: result.response.text() };
+      let responseText = result.response.text();
+      
+      // Split the response to separate main content and expanded content
+      const parts = responseText.split("EXPANDED_CONTENT:");
+      
+      let mainContent = parts[0].trim();
+      let expandedContent = parts.length > 1 ? parts[1].trim() : "";
+      
+      // Add "Know More" button if expanded content exists
+      if (expandedContent) {
+        mainContent += "\n\n<button class='know-more'>Know More</button>";
+      }
+      
+      const botResponse = { 
+        role: 'assistant', 
+        content: mainContent,
+        expandedContent: expandedContent 
+      };
       
       setChatMessages(prevMessages => [...prevMessages, botResponse]);
     } catch (error) {
