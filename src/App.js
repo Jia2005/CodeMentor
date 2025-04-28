@@ -1,12 +1,12 @@
 import React from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
-import CodeLearningPlatform from "./Python_complier/Ide";
+import PythonComplier from "./Python/PythonComplier";
 
 const App = () => {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<CodeLearningPlatform />} />
+        <Route path="/" element={<PythonComplier />} />
       </Routes>
     </HashRouter>
   );
