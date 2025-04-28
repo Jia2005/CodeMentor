@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Maximize2, Minimize2, Send } from 'lucide-react';
+import image from './../Images/chatbot.png';
+import userAvatar from './../Images/user.png';
 
-function Chatbot({ onClose, model, code }) {
-  const [chatSize, setChatSize] = useState('normal'); 
-  const [chatMessages, setChatMessages] = useState([
-    { role: 'system', content: 'Hello! I can help you with Python programming. Ask me about the code, or for help converting other languages to Python.' }
-  ]);
+function Chatbot({ setShowChatbot, chatSize, toggleChatSize, code, messages = [], onSendMessage }) {
   const [userInput, setUserInput] = useState('');
   const [aiThinking, setAiThinking] = useState(false);
   const chatEndRef = useRef(null);
+  const chatMessages = messages.length > 0 ? messages : [
+    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about the code, or for help converting other languages to Python.' }
+  ];
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -19,69 +20,25 @@ function Chatbot({ onClose, model, code }) {
   const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     
-    const newMessage = { role: 'user', content: userInput };
-    setChatMessages(prevMessages => [...prevMessages, newMessage]);
-    setUserInput('');
     setAiThinking(true);
     
     try {
-      let prompt = userInput;
-      
-      if (userInput.toLowerCase().includes('convert') || 
-          userInput.toLowerCase().includes('translate')) {
-        prompt = `Act as a Python expert. Convert the code in my query to proper Python code. 
-                 Show just the converted code with minimal explanation.
-                 
-                 ${userInput}`;
-      } 
-      else if (userInput.toLowerCase().includes('explain') && 
-               (userInput.toLowerCase().includes('code') || userInput.toLowerCase().includes('this'))) {
-        prompt = `Explain this Python code in clear, simple terms:
-                 
-                 ${code}
-                 
-                 ${userInput}`;
-      }
-      else if (userInput.toLowerCase().includes('debug') || 
-               userInput.toLowerCase().includes('fix') || 
-               userInput.toLowerCase().includes('error')) {
-        prompt = `Debug this Python code and suggest fixes:
-                 
-                 ${code}
-                 
-                 ${userInput}`;
-      }
-      else {
-        prompt = `As a Python teaching assistant, respond to this question: ${userInput}`;
+      if (typeof onSendMessage === 'function') {
+        await onSendMessage(userInput);
       }
       
-      // Use the model prop to send the message
-      const result = await model.sendMessage(prompt);
-      const responseText = result.response.text();
-      
-      setChatMessages(prevMessages => [
-        ...prevMessages, 
-        { role: 'assistant', content: responseText }
-      ]);
+      setUserInput('');
     } catch (error) {
-      let errorMessage = "Sorry, I encountered an error processing your request.";
-      if (error.message?.includes("API key")) {
-        errorMessage += " There seems to be an issue with the API key.";
-      } else if (error.message?.includes("quota")) {
-        errorMessage += " You may have exceeded your API quota.";
-      }
-      console.error("Error with AI response:", error);
-      setChatMessages(prevMessages => [
-        ...prevMessages, 
-        { role: 'assistant', content: errorMessage }
-      ]);
+      console.error("Error sending message:", error);
     } finally {
       setAiThinking(false);
     }
   };
 
-  const toggleChatSize = () => {
-    setChatSize(chatSize === 'normal' ? 'large' : 'normal');
+  const handleClose = () => {
+    if (typeof setShowChatbot === 'function') {
+      setShowChatbot(false);
+    }
   };
 
   const chatSizeClasses = {
@@ -93,14 +50,14 @@ function Chatbot({ onClose, model, code }) {
     <div className={`fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-xl flex flex-col ${chatSizeClasses[chatSize]} transition-all duration-300`}>
       <div className="bg-indigo-600 text-white p-3 rounded-t-lg flex justify-between items-center">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-full bg-indigo-400 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-indigo-400 flex items-center justify-center overflow-hidden">
             <img 
-              src="/api/placeholder/32/32" 
-              alt="AI Assistant" 
-              className="rounded-full"
+              src={image}
+              alt="Luna" 
+              className="w-full h-full object-cover"
             />
           </div>
-          <h3 className="font-medium">Python Assistant</h3>
+          <h3 className="font-medium">Luna - Python Assistant</h3>
         </div>
         <div className="flex space-x-2">
           <button 
@@ -110,7 +67,7 @@ function Chatbot({ onClose, model, code }) {
             {chatSize === 'large' ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           </button>
           <button 
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 hover:bg-indigo-500 rounded"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -124,37 +81,53 @@ function Chatbot({ onClose, model, code }) {
         {chatMessages.map((msg, index) => (
           <div 
             key={index} 
-            className={`mb-3 p-3 rounded-lg ${
+            className={`mb-3 ${
               msg.role === 'user' 
-                ? 'bg-indigo-100 ml-auto max-w-[80%] text-right' 
-                : msg.role === 'system'
-                  ? 'bg-gray-100 border border-gray-200 max-w-[90%]'
-                  : 'bg-white border border-gray-200 max-w-[80%]'
+                ? 'ml-auto max-w-[80%] flex flex-row-reverse' 
+                : 'max-w-[80%] flex'
             }`}
           >
-            <div className="font-semibold mb-1 text-sm">
-              {msg.role === 'user' ? 'You' : msg.role === 'system' ? 'System' : 'Assistant'}
+            <div className="w-8 h-8 rounded-full flex-shrink-0 mx-2">
+              {msg.role === 'user' ? (
+                <img src={userAvatar} alt="User" className="w-full h-full rounded-full" />
+              ) : (
+                <img src={image} alt="Luna" className="w-full h-full rounded-full" />
+              )}
             </div>
-            <div className="whitespace-pre-wrap text-sm text-left">
-              {msg.content.includes('```') 
-                ? msg.content.split('```').map((part, i) => 
-                    i % 2 === 1 
-                      ? <pre key={i} className="bg-gray-800 p-2 rounded text-white text-sm my-2 overflow-x-auto">{part.replace(/^python\n/, '')}</pre> 
-                      : <span key={i}>{part}</span>
-                  )
-                : msg.content
-              }
+            <div className={`p-3 rounded-lg ${
+              msg.role === 'user' 
+                ? 'bg-indigo-100 text-right' 
+                : 'bg-white border border-gray-200'
+            }`}>
+              <div className="font-semibold mb-1 text-sm">
+                {msg.role === 'user' ? 'You' : 'Luna'}
+              </div>
+              <div className="whitespace-pre-wrap text-sm text-left">
+                {msg.content.includes('```') 
+                  ? msg.content.split('```').map((part, i) => 
+                      i % 2 === 1 
+                        ? <pre key={i} className="bg-gray-800 p-2 rounded text-white text-sm my-2 overflow-x-auto">{part.replace(/^python\n/, '')}</pre> 
+                        : <span key={i}>{part}</span>
+                    )
+                  : msg.content
+                }
+              </div>
             </div>
           </div>
         ))}
         {aiThinking && (
-          <div className="mb-3 p-3 rounded-lg bg-white border border-gray-200 max-w-[80%]">
-            <div className="font-semibold mb-1 text-sm">Assistant</div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
-              <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-100"></div>
-              <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-200"></div>
-              <span className="text-gray-500 text-sm">Thinking...</span>
+          <div className="mb-3 flex max-w-[80%]">
+            <div className="w-8 h-8 rounded-full flex-shrink-0 mx-2">
+              <img src={image} alt="Luna" className="w-full h-full rounded-full" />
+            </div>
+            <div className="p-3 rounded-lg bg-white border border-gray-200">
+              <div className="font-semibold mb-1 text-sm">Luna</div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-100"></div>
+                <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse delay-200"></div>
+                <span className="text-gray-500 text-sm">Thinking...</span>
+              </div>
             </div>
           </div>
         )}
@@ -168,7 +141,7 @@ function Chatbot({ onClose, model, code }) {
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-            placeholder="Ask about Python..."
+            placeholder="Ask Luna about Python..."
             className="flex-grow border border-gray-300 rounded-l p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button 

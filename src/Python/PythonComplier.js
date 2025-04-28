@@ -6,6 +6,7 @@ import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import image from './../Images/chatbot.png';
 
 function PythonComplier() {
   const [code, setCode] = useState('# Example Python code\ndef calculate_sum(a, b):\n    """Calculate the sum of two numbers"""\n    return a + b\n\n# Call the function\nresult = calculate_sum(5, 7)\nprint(f"The sum is: {result}")');
@@ -16,6 +17,9 @@ function PythonComplier() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
+  const [chatMessages, setChatMessages] = useState([
+    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about the code, or for help converting other languages to Python.' }
+  ]);
 
   const executeCode = async () => {
     setIsExecuting(true);
@@ -91,6 +95,11 @@ function PythonComplier() {
     
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+      if (!API_KEY) {
+        console.error("API key is missing");
+        return "Check your code syntax and logic. API key error prevented detailed suggestions.";
+      }
+
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
       
@@ -205,6 +214,12 @@ function PythonComplier() {
     
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+      if (!API_KEY) {
+        console.error("API key is missing");
+        setExplanationData(basicExplanations);
+        return;
+      }
+
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
       
@@ -255,6 +270,71 @@ function PythonComplier() {
 
   const toggleChatSize = () => {
     setChatSize(chatSize === 'normal' ? 'large' : 'normal');
+  };
+
+  // Function to handle sending messages to the chatbot
+  const handleSendMessage = async (message) => {
+    try {
+      // Add user message to chat
+      const newUserMessage = { role: 'user', content: message };
+      setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
+      
+      const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+      if (!API_KEY) {
+        throw new Error("API key is missing");
+      }
+      
+      const genAI = new GoogleGenerativeAI(API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+      
+      let prompt = message;
+      
+      if (message.toLowerCase().includes('convert') || 
+          message.toLowerCase().includes('translate')) {
+        prompt = `Act as a Python expert. Convert the code in my query to proper Python code. 
+                 Show just the converted code with minimal explanation.
+                 
+                 ${message}`;
+      } 
+      else if (message.toLowerCase().includes('explain') && 
+               (message.toLowerCase().includes('code') || message.toLowerCase().includes('this'))) {
+        prompt = `Explain this Python code in clear, simple terms:
+                 
+                 ${code}
+                 
+                 ${message}`;
+      }
+      else if (message.toLowerCase().includes('debug') || 
+               message.toLowerCase().includes('fix') || 
+               message.toLowerCase().includes('error')) {
+        prompt = `Debug this Python code and suggest fixes:
+                 
+                 ${code}
+                 
+                 ${message}`;
+      }
+      else {
+        prompt = `As a Python teaching assistant, respond to this question: ${message}`;
+      }
+      
+      const result = await model.generateContent(prompt);
+      const botResponse = { role: 'assistant', content: result.response.text() };
+      
+      setChatMessages(prevMessages => [...prevMessages, botResponse]);
+    } catch (error) {
+      console.error("Error in chatbot response:", error);
+      
+      let errorMessage = "Sorry, I encountered an error processing your request.";
+      if (error.message?.includes("API key")) {
+        errorMessage += " There seems to be an issue with the API key.";
+      } else if (error.message?.includes("quota")) {
+        errorMessage += " You may have exceeded your API quota.";
+      }
+      
+      // Add error message to chat
+      const errorResponse = { role: 'assistant', content: errorMessage };
+      setChatMessages(prevMessages => [...prevMessages, errorResponse]);
+    }
   };
 
   return (
@@ -320,11 +400,11 @@ function PythonComplier() {
         {!showChatbot ? (
           <button 
             onClick={() => setShowChatbot(true)}
-            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center"
+            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-20 w-20"
           >
             <div>
               <img 
-                src="/api/placeholder/48/48" 
+                src={image}
                 alt="Chat Assistant" 
                 className="rounded-full"
               />
@@ -334,9 +414,10 @@ function PythonComplier() {
           <Chatbot 
             code={code}
             chatSize={chatSize}
-            setChatSize={setChatSize}
             toggleChatSize={toggleChatSize}
             setShowChatbot={setShowChatbot}
+            messages={chatMessages}
+            onSendMessage={handleSendMessage}
           />
         )}
       </div>
