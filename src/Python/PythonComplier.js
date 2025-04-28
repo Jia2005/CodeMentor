@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MessageSquare } from 'lucide-react';
 import CodeEditor from './CodeEditor';
 import Header from './Header';
 import OutputViewer from './OutputViewer';
@@ -18,7 +19,7 @@ function PythonComplier() {
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
   const [chatMessages, setChatMessages] = useState([
-    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about the code, or for help converting other languages to Python.' }
+    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about Python code or for help converting other languages to Python.' }
   ]);
 
   const executeCode = async () => {
@@ -272,12 +273,21 @@ function PythonComplier() {
     setChatSize(chatSize === 'normal' ? 'large' : 'normal');
   };
 
-  // Function to handle sending messages to the chatbot
   const handleSendMessage = async (message) => {
     try {
-      // Add user message to chat
       const newUserMessage = { role: 'user', content: message };
       setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
+      
+      const isPythonRelated = isPythonQuestion(message);
+      
+      if (!isPythonRelated) {
+        const restrictedResponse = { 
+          role: 'assistant', 
+          content: "I'm only here to help with Python-related questions. How can I assist you with your Python code?" 
+        };
+        setChatMessages(prevMessages => [...prevMessages, restrictedResponse]);
+        return;
+      }
       
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) {
@@ -291,30 +301,36 @@ function PythonComplier() {
       
       if (message.toLowerCase().includes('convert') || 
           message.toLowerCase().includes('translate')) {
-        prompt = `Act as a Python expert. Convert the code in my query to proper Python code. 
-                 Show just the converted code with minimal explanation.
+        prompt = `Convert the code to proper Python code. Return just the converted code with minimal explanation.
                  
                  ${message}`;
       } 
       else if (message.toLowerCase().includes('explain') && 
                (message.toLowerCase().includes('code') || message.toLowerCase().includes('this'))) {
-        prompt = `Explain this Python code in clear, simple terms:
+        prompt = `Explain this Python code concisely:
                  
                  ${code}
                  
-                 ${message}`;
+                 ${message}
+                 
+                 Keep your initial answer brief and to the point. Add "Need more details? Let me know." at the end.`;
       }
       else if (message.toLowerCase().includes('debug') || 
                message.toLowerCase().includes('fix') || 
                message.toLowerCase().includes('error')) {
-        prompt = `Debug this Python code and suggest fixes:
+        prompt = `Debug this Python code and suggest fixes concisely:
                  
                  ${code}
                  
-                 ${message}`;
+                 ${message}
+                 
+                 Keep your answer short and direct. Add "Want a detailed explanation? Just ask." at the end.`;
       }
       else {
-        prompt = `As a Python teaching assistant, respond to this question: ${message}`;
+        prompt = `Respond concisely to this Python question: ${message}
+                 
+                 Keep your answer brief and focused. Add "Need more information? Let me know." at the end if appropriate.
+                 Use code formatting with \`backticks\` instead of bold text for code elements and syntax.`;
       }
       
       const result = await model.generateContent(prompt);
@@ -331,10 +347,41 @@ function PythonComplier() {
         errorMessage += " You may have exceeded your API quota.";
       }
       
-      // Add error message to chat
       const errorResponse = { role: 'assistant', content: errorMessage };
       setChatMessages(prevMessages => [...prevMessages, errorResponse]);
     }
+  };
+  
+  const isPythonQuestion = (message) => {
+    const pythonKeywords = [
+      'python', 'def', 'class', 'import', 'print', 'list', 'dict', 'tuple',
+      'set', 'for loop', 'while loop', 'if statement', 'elif', 'else',
+      'function', 'variable', 'string', 'integer', 'float', 'boolean',
+      'module', 'package', 'pip', 'exception', 'try', 'except', 'finally',
+      'raise', 'with', 'as', 'lambda', 'yield', 'return', 'break', 'continue',
+      'pass', 'assert', 'global', 'nonlocal', 'pandas', 'numpy', 'matplotlib',
+      'tensorflow', 'pytorch', 'django', 'flask', 'fastapi', 'sqlalchemy',
+      'anaconda', 'jupyter', 'notebook', 'virtual environment', 'venv',
+      'iterator', 'generator', 'comprehension', 'decorator', 'recursion',
+      'algorithm', 'data structure', 'convert', 'translate', 'code'
+    ];
+    
+    const lowerMessage = message.toLowerCase();
+    
+    for (const keyword of pythonKeywords) {
+      if (lowerMessage.includes(keyword.toLowerCase())) {
+        return true;
+      }
+    }
+    
+    if (lowerMessage.includes('this code') || 
+        lowerMessage.includes('the code') ||
+        lowerMessage.includes('my code') ||
+        lowerMessage.includes('code editor')) {
+      return true;
+    }
+    
+    return false;
   };
 
   return (
@@ -400,14 +447,13 @@ function PythonComplier() {
         {!showChatbot ? (
           <button 
             onClick={() => setShowChatbot(true)}
-            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-20 w-20"
+            className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-16 w-16"
           >
-            <div>
-              <img 
-                src={image}
-                alt="Chat Assistant" 
-                className="rounded-full"
-              />
+            <div className='absolute'>
+            <MessageSquare size={30} className="text-white" />
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full">
+              <span className="absolute top-0 left-0 w-full h-full rounded-full bg-green-400 animate-ping opacity-75"></span>
+            </div>
             </div>
           </button>
         ) : (
