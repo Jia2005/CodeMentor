@@ -1,10 +1,11 @@
-import React from 'react';
 import Editor from '@monaco-editor/react';
 
 function CodeEditor({ code, setCode }) {
   return (
     <Editor
-      height="400px"
+      // The editor will now take the height of its container
+      height="500px"
+      corner="rounded-xl"
       defaultLanguage="python"
       value={code}
       onChange={setCode}
@@ -15,6 +16,11 @@ function CodeEditor({ code, setCode }) {
         scrollBeyondLastLine: false,
         wordWrap: 'on',
         automaticLayout: true,
+        // This makes the editor's height grow with its content
+        scrollbar: {
+          vertical: 'hidden',
+          handleMouseWheel: false,
+        },
       }}
     />
   );
