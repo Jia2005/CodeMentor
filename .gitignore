@@ -1,30 +1,26 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+**/node_modules
+**/.pnp
+**/.pnp.js
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Build files
+**/build
+**/dist
+**/.next
+**/out
 
-# testing
-/coverage
+# Environment files
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
 
-# production
-/build
+# Debug logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
 
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# .gitignore
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Editor directories and files
+**/.idea
+**/.vscode
