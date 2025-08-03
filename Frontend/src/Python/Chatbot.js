@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Maximize2, Minimize2, Send } from 'lucide-react';
-import ReactMarkdown from 'react-markdown'; 
+import ReactMarkdown from 'react-markdown';
 import image from './../Images/chatbot.png';
 import userAvatar from './../Images/user.png';
 
@@ -78,17 +78,15 @@ function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSe
               <div className="font-semibold mb-1 text-sm">
                 {msg.role === 'user' ? 'You' : 'Luna'}
               </div>
-              {/* === CHANGED SECTION START === */}
               <div className="whitespace-pre-wrap text-sm text-left break-words">
                 <ReactMarkdown
-                  children={msg.content}
                   components={{
-                    // This custom component styles the code blocks (```code```)
-                    pre: ({node, ...props}) => <pre className="bg-gray-800 p-2 rounded text-white my-2 overflow-x-auto" {...props} />
+                    pre: (props) => <pre className="bg-gray-800 p-2 rounded text-white my-2 overflow-x-auto" {...props} />
                   }}
-                />
+                >
+                  {String(msg.content || '')}
+                </ReactMarkdown>
               </div>
-              {/* === CHANGED SECTION END === */}
             </div>
           </div>
         ))}
