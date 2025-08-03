@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Maximize2, Minimize2, Send, ChevronsUpDown } from 'lucide-react';
+import { Send, ChevronsUpDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import image from './../Images/chatbot.png';
 import userAvatar from './../Images/user.png';

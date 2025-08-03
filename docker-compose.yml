@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # Backend Service Configuration
+  backend:
+    build: ./Backend
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./Backend:/app
+      - /app/node_modules
+
+  # Frontend Service Configuration
+  frontend:
+    build: ./Frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
+    environment:
+      # This variable is passed to the frontend container
+      - REACT_APP_BACKEND_URL=ws://backend:3001
+    depends_on:
+      - backend
