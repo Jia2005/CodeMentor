@@ -9,7 +9,7 @@ import Chatbot from './Chatbot';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function PythonComplier() {
-  const [code, setCode] = useState('# Example with user input\nname = input("Enter your name: ")\nprint(f"Hello, {name}!")');
+  const [code, setCode] = useState('name = input("Enter your name: ")\n\nif not name:\n    print("Name cannot be empty.")\nelif len(name) > 50:\n    print("Name is too long.")\nelif not name.replace(" ", "").isalpha():\n    print("Name must only contain alphabet letters or spaces.")\nelse:\n    print(f"Hello, {name}!")');
   const [userInput, setUserInput] = useState('');
   const [output, setOutput] = useState('');
   const [errors, setErrors] = useState(null);
@@ -19,7 +19,12 @@ function PythonComplier() {
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
   const [chatMessages, setChatMessages] = useState([
-    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about the code in the editor, or for help with any Python topic.' }
+    {
+      role: 'assistant',
+      shortContent: "Hello! I'm Luna, your Python coding buddy. Ask me about your code or any Python topic.",
+      expandedContent: null,
+      isExpanded: false
+    }
   ]);
 
   const executeCode = async () => {
@@ -36,115 +41,80 @@ function PythonComplier() {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
       setOutput(result.output);
-      if (result.error) {
-        setErrors({ message: result.error, suggestions: await getAISuggestions({ message: result.error }, code) });
-      } else {
-        await generateAIExplanations(code);
-      }
+      setErrors(result.error ? { message: result.error } : null);
     } catch (error) {
       console.error("Failed to execute code:", error);
-      setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running and restart it if needed.' });
+      setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running.' });
     } finally {
       setIsExecuting(false);
     }
   };
 
-  const getAISuggestions = async (error, code) => {
-    try {
-      const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
-      if (!API_KEY) return "Check code syntax. API key error prevented detailed suggestions.";
-      const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      const prompt = `Python code error: "${error.message}"\nCode:\n${code}\nProvide a brief, helpful suggestion to fix this error.`;
-      const result = await model.generateContent(prompt);
-      return result.response.text();
-    } catch (aiError) {
-      console.error("Error getting AI suggestions:", aiError);
-      return "Check your code syntax and logic.";
-    }
-  };
-
-  const generateAIExplanations = async (code) => {
-    const lines = code.split('\n');
-    const basicExplanations = lines.map((line) => {
-      if (line.trim() === '') return { line, skip: true };
-      const trimmedLine = line.trim();
-      if (trimmedLine.startsWith('def ')) return { line, explanation: "Defines a function", details: "A reusable block of code.", color: "text-blue-600" };
-      if (trimmedLine.startsWith('import ')) return { line, explanation: "Imports a module", details: "Loads external code.", color: "text-purple-600" };
-      if (trimmedLine.startsWith('class ')) return { line, explanation: "Defines a class", details: "A blueprint for objects.", color: "text-green-600" };
-      if (trimmedLine.startsWith('return ')) return { line, explanation: "Returns a value", details: "Sends a result from a function.", color: "text-red-600" };
-      if (trimmedLine.includes('=') && !trimmedLine.includes('==')) return { line, explanation: "Variable assignment", details: "Stores a value in memory.", color: "text-yellow-600" };
-      if (trimmedLine.startsWith('print(')) return { line, explanation: "Output statement", details: "Displays info to the console.", color: "text-teal-600" };
-      if (trimmedLine.startsWith('#')) return { line, explanation: "Comment", details: "A note that isn't executed.", color: "text-gray-500" };
-      return { line, explanation: "Code statement", details: "A general Python instruction.", color: "text-gray-700" };
-    });
-    setExplanationData(basicExplanations);
-  };
-
   const toggleChatSize = () => setChatSize(chatSize === 'normal' ? 'large' : 'normal');
 
-  // New helper function to check if a message is Python-related
-  const isPythonRelated = (message) => {
-    const lowerMessage = message.toLowerCase();
-    const pythonKeywords = [
-        'python', 'code', 'script', 'program', 'error', 'bug', 'debug', 'install', 'run',
-        'function', 'class', 'variable', 'list', 'dict', 'loop', 'import', 'module',
-        'library', 'pandas', 'numpy', 'django', 'flask', 'algorithm', 'data', 'syntax',
-        'ide', 'editor', 'pip', 'venv', 'test', 'efficiency', 'edge case', 'type', 'object'
-    ];
-    return pythonKeywords.some(keyword => lowerMessage.includes(keyword));
+  const handleToggleExpand = (messageIndex) => {
+    setChatMessages(currentMessages =>
+      currentMessages.map((msg, index) =>
+        index === messageIndex ? { ...msg, isExpanded: !msg.isExpanded } : msg
+      )
+    );
   };
 
-  // Final, updated function to handle chatbot messages
   const handleSendMessage = async (message) => {
-    const newUserMessage = { role: 'user', content: message };
+    const newUserMessage = { role: 'user', shortContent: message, expandedContent: null, isExpanded: false };
     setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
-
-    // Guardrail: Check if the message is relevant before calling the AI
-    if (!isPythonRelated(message)) {
-      const botResponse = {
-        role: 'assistant',
-        content: "I'm Luna, your Python assistant. I can only help with questions related to Python programming. How can I assist you with your code?"
-      };
-      setChatMessages(prevMessages => [...prevMessages, botResponse]);
-      return; // Stop here and do not call the AI
-    }
 
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) throw new Error("API key is missing");
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.content}`).join('\n');
+      const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.shortContent}`).join('\n');
 
-      let prompt = `You are Luna, a helpful Python coding assistant.
+      let prompt = `You are Luna, a helpful and friendly Python coding assistant.
       
-      **Rule**: If the user's last question is not about Python programming, concepts, libraries, or code, you MUST politely decline. State that you are a Python-only assistant. Do not answer the off-topic question.
+      **Core Instructions**:
+      1.  **Relevance Rule**: If the user's last question is NOT about Python programming, concepts, libraries, code, or a direct follow-up, you MUST politely decline. State that you are a Python-only assistant. Do not answer the off-topic question.
+      2.  **Formatting Rule**: For all relevant answers, you MUST structure your response in two parts separated by '---LEARN-MORE---'.
+          - Part 1: A short, concise, direct answer to the user's question (1-2 sentences).
+          - Part 2: A detailed, expanded explanation with examples, code snippets, and deeper insights.
+          - If there is no additional information to provide, omit the '---LEARN-MORE---' separator and the second part.
       
-      The user has this code in their editor. Refer to it when the user asks about "the code", "it", or asks a follow-up question.
+      **Context**:
+      - The user has the following Python code in their editor:
       \`\`\`python
       ${code}
       \`\`\`
-      
-      Conversation History:
+      - Here is the conversation history:
       ${history}
       
-      Based on all the above, provide a direct, helpful response to the last message from the User.`;
+      Now, respond to the last user message based on all the rules and context provided.`;
 
       const result = await model.generateContent(prompt);
-      const botResponse = { role: 'assistant', content: result.response.text() };
+      const responseText = result.response.text();
+
+      const responseParts = responseText.split('---LEARN-MORE---');
+      const shortContent = responseParts[0].trim();
+      const expandedContent = responseParts.length > 1 ? responseParts[1].trim() : null;
+
+      const botResponse = {
+        role: 'assistant',
+        shortContent: shortContent,
+        expandedContent: expandedContent,
+        isExpanded: false
+      };
       setChatMessages(prevMessages => [...prevMessages, botResponse]);
 
     } catch (error) {
       console.error("Error in chatbot response:", error);
-      const errorResponse = { role: 'assistant', content: "Sorry, I encountered an error. Please check the console for details." };
+      const errorResponse = { role: 'assistant', shortContent: "Sorry, I encountered an error.", expandedContent: null, isExpanded: false };
       setChatMessages(prevMessages => [...prevMessages, errorResponse]);
     }
   };
 
   return (
     <div className="code-learning-platform">
-      <Header/>
+      <Header />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-8">
         <div className="bg-white rounded-lg shadow-md p-4">
           <h2 className="text-lg font-semibold mb-3">Code Editor</h2>
@@ -183,21 +153,21 @@ function PythonComplier() {
       <div className="fixed bottom-4 right-4 z-50">
         {!showChatbot ? (
           <button onClick={() => setShowChatbot(true)} className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-16 w-16">
-             <div className='absolute'>
-            <MessageSquare size={30} className="text-white" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full">
-              <span className="absolute top-0 left-0 w-full h-full rounded-full bg-green-400 animate-ping opacity-75"></span>
-            </div>
+            <div className='absolute'>
+              <MessageSquare size={30} className="text-white" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full">
+                <span className="absolute top-0 left-0 w-full h-full rounded-full bg-green-400 animate-ping opacity-75"></span>
+              </div>
             </div>
           </button>
         ) : (
           <Chatbot
-            code={code}
             chatSize={chatSize}
             toggleChatSize={toggleChatSize}
             setShowChatbot={setShowChatbot}
             messages={chatMessages}
             onSendMessage={handleSendMessage}
+            onToggleExpand={handleToggleExpand}
           />
         )}
       </div>
