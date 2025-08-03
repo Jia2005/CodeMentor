@@ -1,71 +1,63 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
-const { spawn } = require('child_process'); // To execute python scripts
-const fs = require('fs');
-const path = require('path');
+const http = require('http');
+const WebSocket = require('ws');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', ws => {
+  let pythonProcess = null;
+
+  ws.on('message', message => {
+    try {
+      const data = JSON.parse(message);
+
+      if (data.type === 'run' && data.code) {
+        // The Python '-u' flag is crucial for unbuffered, real-time output
+        pythonProcess = spawn('python', ['-u', '-c', data.code]);
+
+        pythonProcess.stdout.on('data', output => {
+          ws.send(JSON.stringify({ type: 'stdout', data: output.toString() }));
+        });
+
+        pythonProcess.stderr.on('data', error => {
+          ws.send(JSON.stringify({ type: 'stderr', data: error.toString() }));
+        });
+
+        pythonProcess.on('close', () => {
+          ws.send(JSON.stringify({ type: 'exit' }));
+          ws.close();
+        });
+
+        pythonProcess.on('error', (err) => {
+            ws.send(JSON.stringify({ type: 'error', data: 'Failed to start Python process.' }));
+            ws.close();
+        });
+
+      } else if (data.type === 'stdin' && pythonProcess) {
+        pythonProcess.stdin.write(data.data);
+      }
+    } catch (e) {
+      console.error("Failed to process message or invalid message format:", e);
+    }
+  });
+
+  ws.on('close', () => {
+    if (pythonProcess) {
+      pythonProcess.kill();
+    }
+  });
+});
 
 app.get('/', (req, res) => {
   res.send('Backend server is running!');
 });
 
-// This route handles the code execution requests from the frontend
-app.post('/api/execute', (req, res) => {
-  // Expect 'code' and optional 'userInput' from the request body
-  const { code, userInput } = req.body;
-
-  if (!code) {
-    return res.status(400).json({ error: "No code provided to execute." });
-  }
-
-  // A temporary file is created to safely execute the received code
-  const tempFilePath = path.join(__dirname, `temp_script_${Date.now()}.py`);
-  fs.writeFileSync(tempFilePath, code);
-
-  const pythonProcess = spawn('python', [tempFilePath]);
-
-  let output = '';
-  let errorOutput = '';
-
-  // Listen for data from the python script's standard output (stdout)
-  pythonProcess.stdout.on('data', (data) => {
-    output += data.toString();
-  });
-
-  // Listen for any errors from the python script's standard error (stderr)
-  pythonProcess.stderr.on('data', (data) => {
-    errorOutput += data.toString();
-  });
-
-  // This event fires when the python script finishes execution
-  pythonProcess.on('close', (exitCode) => {
-    fs.unlinkSync(tempFilePath); // Important: clean up the temporary file
-    res.json({ output: output, error: errorOutput || null });
-  });
-
-  // If the user provided input, write it to the Python script's standard input (stdin)
-  if (userInput) {
-    pythonProcess.stdin.write(userInput + '\n');
-  }
-  // Close the stdin stream to signal that no more input will be sent
-  pythonProcess.stdin.end();
-
-  // Handle potential errors with the spawn process itself (e.g., python not found)
-  pythonProcess.on('error', (err) => {
-      console.error('Failed to start subprocess.', err);
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath); // Ensure cleanup on spawn error
-      }
-      res.status(500).json({ error: 'Failed to execute the script on the server.' });
-  });
-});
-
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
