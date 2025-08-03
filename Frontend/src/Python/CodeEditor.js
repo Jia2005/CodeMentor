@@ -16,7 +16,6 @@ function CodeEditor({ code, setCode }) {
         scrollBeyondLastLine: false,
         wordWrap: 'on',
         automaticLayout: true,
-        // This makes the editor's height grow with its content
         scrollbar: {
           vertical: 'hidden',
           handleMouseWheel: false,
