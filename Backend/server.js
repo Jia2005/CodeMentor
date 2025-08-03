@@ -26,9 +26,7 @@ wss.on('connection', ws => {
     ws.send(JSON.stringify({ type: 'stderr', data: data.toString() }));
   });
 
-  // *** THIS IS THE FIX ***
   // When the Python process finishes, close the WebSocket connection.
-  // This signals the frontend that execution is complete.
   pythonProcess.on('exit', (code) => {
     console.log(`Python process exited with code ${code}`);
     ws.close();
@@ -44,6 +42,11 @@ wss.on('connection', ws => {
       if (parsedMessage.data) {
         pythonProcess.stdin.write(parsedMessage.data);
       }
+      // *** THIS IS THE FIX ***
+      // Signal that no more data will be written to stdin.
+      // This "un-sticks" the Python input() function.
+      pythonProcess.stdin.end();
+
     } catch (e) {
       console.error("Invalid message format:", e);
     }
