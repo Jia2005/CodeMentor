@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 import CodeEditor from './CodeEditor';
 import Header from './Header';
@@ -7,11 +7,10 @@ import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import image from './../Images/chatbot.png';
 
 function PythonComplier() {
   const [code, setCode] = useState('# Example with user input\nname = input("Enter your name: ")\nprint(f"Hello, {name}!")');
-  const [userInput, setUserInput] = useState(''); // State for user input
+  const [userInput, setUserInput] = useState('');
   const [output, setOutput] = useState('');
   const [errors, setErrors] = useState(null);
   const [viewMode, setViewMode] = useState('output');
@@ -20,15 +19,14 @@ function PythonComplier() {
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
   const [chatMessages, setChatMessages] = useState([
-    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about Python code or for help converting other languages to Python.' }
+    { role: 'assistant', content: 'Hello! I\'m Luna, your Python coding buddy. Ask me about the code in the editor, or for help with any Python topic.' }
   ]);
 
-  // The new executeCode function that calls the real backend
   const executeCode = async () => {
     setIsExecuting(true);
     setErrors(null);
     setOutput('');
-    setExplanationData([]); // Clear previous explanations
+    setExplanationData([]);
 
     try {
       const response = await fetch('http://localhost:3001/api/execute', {
@@ -52,21 +50,19 @@ function PythonComplier() {
           suggestions: await getAISuggestions({ message: result.error }, code)
         });
       } else {
-        // Generate explanations only on successful execution
         await generateAIExplanations(code);
       }
     } catch (error) {
       console.error("Failed to execute code:", error);
       setErrors({
-        message: 'Could not connect to the execution server. Please ensure the backend is running.',
-        suggestions: 'Start the backend server by running `node server.js` in the `Backend` directory.'
+        message: 'Could not connect to the execution server. Please ensure the backend is running correctly.',
+        suggestions: 'Stop the backend server (Ctrl+C) and restart it with `node server.js`.'
       });
     } finally {
       setIsExecuting(false);
     }
   };
 
-  // Your original AI-powered helper functions remain unchanged.
   const getAISuggestions = async (error, code) => {
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
@@ -75,10 +71,7 @@ function PythonComplier() {
       }
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      const prompt = `I have a Python code that generated this error: "${error.message}"
-      Here's the code:
-      ${code}
-      Provide a brief, helpful suggestion to fix this error. Keep it under 100 characters if possible. Don't explain why the error happened, just give a clear, actionable fix.`;
+      const prompt = `I have a Python code that generated this error: "${error.message}"\nHere's the code:\n${code}\nProvide a brief, helpful suggestion to fix this error.`;
       const result = await model.generateContent(prompt);
       return result.response.text();
     } catch (aiError) {
@@ -92,41 +85,16 @@ function PythonComplier() {
     const basicExplanations = lines.map((line) => {
       if (line.trim() === '') return { line, skip: true };
       const trimmedLine = line.trim();
-      if (trimmedLine.startsWith('def ')) return { line, explanation: "Defines a function", details: "Creating a reusable block of code that can be called later", color: "text-blue-600" };
-      if (trimmedLine.startsWith('import ')) return { line, explanation: "Imports a module", details: "Loads external functionality to use in your code", color: "text-purple-600" };
-      if (trimmedLine.startsWith('class ')) return { line, explanation: "Defines a class", details: "Creates a blueprint for objects with properties and methods", color: "text-green-600" };
-      if (trimmedLine.startsWith('return ')) return { line, explanation: "Returns a value", details: "Sends a result back from a function", color: "text-red-600" };
-      if (trimmedLine.includes('=') && !trimmedLine.includes('==')) return { line, explanation: "Variable assignment", details: "Stores a value in memory with a name", color: "text-yellow-600" };
-      if (trimmedLine.startsWith('print(')) return { line, explanation: "Output statement", details: "Displays information to the console", color: "text-teal-600" };
-      if (trimmedLine.startsWith('if ')) return { line, explanation: "Condition check", details: "Executes code only if the condition is true", color: "text-indigo-600" };
-      if (trimmedLine.startsWith('for ')) return { line, explanation: "Loop structure", details: "Repeats code for each item in a sequence", color: "text-pink-600" };
-      if (trimmedLine.startsWith('#')) return { line, explanation: "Comment", details: "Documentation that isn't executed", color: "text-gray-500" };
-      if (trimmedLine.startsWith('"""') || trimmedLine.endsWith('"""')) return { line, explanation: "Docstring", details: "Documentation string that describes functions, classes, or modules", color: "text-gray-500" };
-      return { line, explanation: "Code statement", details: "General Python instruction", color: "text-gray-700" };
+      if (trimmedLine.startsWith('def ')) return { line, explanation: "Defines a function", details: "Creating a reusable block of code.", color: "text-blue-600" };
+      if (trimmedLine.startsWith('import ')) return { line, explanation: "Imports a module", details: "Loads external functionality.", color: "text-purple-600" };
+      if (trimmedLine.startsWith('class ')) return { line, explanation: "Defines a class", details: "Creates a blueprint for objects.", color: "text-green-600" };
+      if (trimmedLine.startsWith('return ')) return { line, explanation: "Returns a value", details: "Sends a result back from a function.", color: "text-red-600" };
+      if (trimmedLine.includes('=') && !trimmedLine.includes('==')) return { line, explanation: "Variable assignment", details: "Stores a value in memory.", color: "text-yellow-600" };
+      if (trimmedLine.startsWith('print(')) return { line, explanation: "Output statement", details: "Displays information to the console.", color: "text-teal-600" };
+      if (trimmedLine.startsWith('#')) return { line, explanation: "Comment", details: "A note that isn't executed.", color: "text-gray-500" };
+      return { line, explanation: "Code statement", details: "A general Python instruction.", color: "text-gray-700" };
     });
-    try {
-      const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
-      if (!API_KEY) { setExplanationData(basicExplanations); return; }
-      const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      const prompt = `Analyze this Python code line by line:\n${code}\nFor each non-empty line, provide a brief explanation and a detailed explanation. Format your response as JSON array with objects having these properties: lineIndex, shortExplanation, detailedExplanation. Only include non-empty lines. Return ONLY the JSON.`;
-      const result = await model.generateContent(prompt);
-      let aiExplanations;
-      try {
-        aiExplanations = JSON.parse(result.response.text());
-      } catch (parseError) { setExplanationData(basicExplanations); return; }
-      const enhancedExplanations = basicExplanations.map((basic, index) => {
-        const aiExplanation = aiExplanations.find(ai => ai.lineIndex === index);
-        if (aiExplanation && !basic.skip) {
-          return { ...basic, explanation: aiExplanation.shortExplanation || basic.explanation, details: aiExplanation.detailedExplanation || basic.details };
-        }
-        return basic;
-      });
-      setExplanationData(enhancedExplanations);
-    } catch (error) {
-      console.error("Error generating AI explanations:", error);
-      setExplanationData(basicExplanations);
-    }
+    setExplanationData(basicExplanations);
   };
 
   const toggleChatSize = () => {
@@ -134,35 +102,39 @@ function PythonComplier() {
   };
 
   const handleSendMessage = async (message) => {
-    // This function remains unchanged as it controls the chatbot.
     try {
       const newUserMessage = { role: 'user', content: message };
       setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
-      const isPythonRelated = isPythonQuestion(message);
-      if (!isPythonRelated) {
-        const friendlyResponse = { role: 'assistant', content: "I specialize in Python. Feel free to ask me anything related to coding or programming concepts!" };
-        setChatMessages(prevMessages => [...prevMessages, friendlyResponse]);
-        return;
-      }
+      const lowerMessage = message.toLowerCase();
+      
+      const isAboutTheCode = lowerMessage.includes('this code') || 
+                             lowerMessage.includes('the code') || 
+                             lowerMessage.includes('my code') ||
+                             lowerMessage.includes('is this right');
+
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) throw new Error("API key is missing");
+
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      let prompt = `Respond to this Python question in a friendly, conversational way: ${message}`;
+      
+      let prompt = `You are Luna, a friendly and helpful Python coding assistant.`;
+
+      if (isAboutTheCode) {
+        prompt += `\n\nThe user has the following Python code in their editor:\n\`\`\`python\n${code}\n\`\`\`\n\nThey asked: "${message}". Please answer their question about the code.`;
+      } else {
+        prompt += `\nThe user asked: "${message}". Answer their question about Python.`;
+      }
+
       const result = await model.generateContent(prompt);
       const botResponse = { role: 'assistant', content: result.response.text() };
       setChatMessages(prevMessages => [...prevMessages, botResponse]);
+
     } catch (error) {
       console.error("Error in chatbot response:", error);
-      const errorResponse = { role: 'assistant', content: "Sorry, I encountered an error processing your request." };
+      const errorResponse = { role: 'assistant', content: "Sorry, I encountered an error. Please check the console for details." };
       setChatMessages(prevMessages => [...prevMessages, errorResponse]);
     }
-  };
-
-  const isPythonQuestion = (message) => {
-    const pythonKeywords = ['python', 'def', 'class', 'import', 'print', 'list', 'dict', 'tuple', 'set', 'for', 'while', 'if', 'else', 'elif', 'function', 'variable', 'pandas', 'numpy', 'django', 'flask', 'code'];
-    const lowerMessage = message.toLowerCase();
-    return pythonKeywords.some(keyword => lowerMessage.includes(keyword));
   };
 
   return (
@@ -185,11 +157,7 @@ function PythonComplier() {
           </div>
 
           <div className="flex justify-between mt-4">
-            <button
-              onClick={executeCode}
-              disabled={isExecuting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded disabled:opacity-50"
-            >
+            <button onClick={executeCode} disabled={isExecuting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded disabled:opacity-50">
               {isExecuting ? 'Running...' : 'Run Code'}
             </button>
             <div className="space-x-2">
