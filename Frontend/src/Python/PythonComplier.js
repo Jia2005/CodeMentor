@@ -36,12 +36,11 @@ function PythonComplier() {
     setExplanationData([]);
 
     // Use the environment variable for the backend URL, with a fallback for local development
-    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'ws://localhost:3001';
-    const ws = new WebSocket(backendUrl);
+    const ws = new WebSocket('ws://localhost:3001');
 
     // When the connection opens, send the code and user input
     ws.onopen = () => {
-      console.log('WebSocket connected to:', backendUrl);
+      console.log('WebSocket connected to:', 'ws://localhost:3001');
       // The backend expects the input to be a JSON string with 'code' and 'data' keys
       ws.send(JSON.stringify({ code, data: userInput + '\n' }));
     };

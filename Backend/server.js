@@ -1,39 +1,47 @@
-require('dotenv').config();
-const http = require('http');
 const express = require('express');
+const http = require('http');
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
+require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
 const PORT = process.env.PORT || 3001;
 
 wss.on('connection', ws => {
-  // Spawn a persistent, interactive Python shell for the session.
-  // The '-u' flag is crucial for unbuffered, real-time output.
+  console.log('Client connected');
+
+  // Use '-u' for unbuffered output
   const pythonProcess = spawn('python', ['-u']);
 
-  // Forward output from the Python shell to the frontend client.
+  // Stream stdout from Python to the WebSocket client
   pythonProcess.stdout.on('data', data => {
     ws.send(JSON.stringify({ type: 'stdout', data: data.toString() }));
   });
 
-  // Forward errors from the Python shell to the frontend client.
+  // Stream stderr from Python to the WebSocket client
   pythonProcess.stderr.on('data', data => {
     ws.send(JSON.stringify({ type: 'stderr', data: data.toString() }));
   });
 
-  // Handle messages received from the frontend client.
+  // *** THIS IS THE FIX ***
+  // When the Python process finishes, close the WebSocket connection.
+  // This signals the frontend that execution is complete.
+  pythonProcess.on('exit', (code) => {
+    console.log(`Python process exited with code ${code}`);
+    ws.close();
+  });
+
+  // Handle messages from the client (code to execute)
   ws.on('message', message => {
     try {
       const parsedMessage = JSON.parse(message);
-
-      // When the client sends code to run or user input, write it
-      // to the Python shell's standard input.
-      if (parsedMessage.type === 'run' && parsedMessage.code) {
+      if (parsedMessage.code) {
         pythonProcess.stdin.write(parsedMessage.code + '\n');
-      } else if (parsedMessage.type === 'stdin' && parsedMessage.data) {
+      }
+      if (parsedMessage.data) {
         pythonProcess.stdin.write(parsedMessage.data);
       }
     } catch (e) {
@@ -41,9 +49,15 @@ wss.on('connection', ws => {
     }
   });
 
-  // Clean up the Python process when the client disconnects.
+  // Handle client disconnection
   ws.on('close', () => {
+    console.log('Client disconnected');
+    // Ensure the Python process is terminated if the client disconnects.
     pythonProcess.kill();
+  });
+
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
   });
 });
 

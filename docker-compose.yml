@@ -18,8 +18,5 @@ services:
     volumes:
       - ./Frontend:/app
       - /app/node_modules
-    environment:
-      # This variable is passed to the frontend container
-      - REACT_APP_BACKEND_URL=ws://backend:3001
     depends_on:
       - backend
