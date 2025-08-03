@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Maximize2, Minimize2, Send } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from 'react-markdown'; // Import the new library
 import image from './../Images/chatbot.png';
 import userAvatar from './../Images/user.png';
 
@@ -74,18 +74,17 @@ function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSe
                 <img src={image} alt="Luna" className="w-full h-full rounded-full" />
               )}
             </div>
-            <div className={`p-3 rounded-lg ${ msg.role === 'user' ? 'bg-indigo-100 text-right' : 'bg-white border border-gray-200' }`}>
+            <div className={`p-3 rounded-lg overflow-x-auto ${ msg.role === 'user' ? 'bg-indigo-100 text-right' : 'bg-white border border-gray-200' }`}>
               <div className="font-semibold mb-1 text-sm">
                 {msg.role === 'user' ? 'You' : 'Luna'}
               </div>
               <div className="whitespace-pre-wrap text-sm text-left break-words">
                 <ReactMarkdown
+                  children={msg.content}
                   components={{
-                    pre: (props) => <pre className="bg-gray-800 p-2 rounded text-white my-2 overflow-x-auto" {...props} />
+                    pre: ({node, ...props}) => <pre className="bg-gray-800 p-2 rounded text-white my-2 overflow-x-auto" {...props} />
                   }}
-                >
-                  {String(msg.content || '')}
-                </ReactMarkdown>
+                />
               </div>
             </div>
           </div>

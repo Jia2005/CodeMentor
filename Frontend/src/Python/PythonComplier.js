@@ -27,37 +27,23 @@ function PythonComplier() {
     setErrors(null);
     setOutput('');
     setExplanationData([]);
-
     try {
       const response = await fetch('http://localhost:3001/api/execute', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, userInput }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
-
       setOutput(result.output);
       if (result.error) {
-        setErrors({
-          message: result.error,
-          suggestions: await getAISuggestions({ message: result.error }, code)
-        });
+        setErrors({ message: result.error, suggestions: await getAISuggestions({ message: result.error }, code) });
       } else {
         await generateAIExplanations(code);
       }
     } catch (error) {
       console.error("Failed to execute code:", error);
-      setErrors({
-        message: 'Could not connect to the execution server. Please ensure the backend is running correctly.',
-        suggestions: 'Stop the backend server (Ctrl+C) and restart it with `node server.js`.'
-      });
+      setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running and restart it if needed.' });
     } finally {
       setIsExecuting(false);
     }
@@ -66,12 +52,10 @@ function PythonComplier() {
   const getAISuggestions = async (error, code) => {
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
-      if (!API_KEY) {
-        return "Check your code syntax and logic. API key error prevented detailed suggestions.";
-      }
+      if (!API_KEY) return "Check code syntax. API key error prevented detailed suggestions.";
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      const prompt = `I have a Python code that generated this error: "${error.message}"\nHere's the code:\n${code}\nProvide a brief, helpful suggestion to fix this error.`;
+      const prompt = `Python code error: "${error.message}"\nCode:\n${code}\nProvide a brief, helpful suggestion to fix this error.`;
       const result = await model.generateContent(prompt);
       return result.response.text();
     } catch (aiError) {
@@ -85,46 +69,67 @@ function PythonComplier() {
     const basicExplanations = lines.map((line) => {
       if (line.trim() === '') return { line, skip: true };
       const trimmedLine = line.trim();
-      if (trimmedLine.startsWith('def ')) return { line, explanation: "Defines a function", details: "Creating a reusable block of code.", color: "text-blue-600" };
-      if (trimmedLine.startsWith('import ')) return { line, explanation: "Imports a module", details: "Loads external functionality.", color: "text-purple-600" };
-      if (trimmedLine.startsWith('class ')) return { line, explanation: "Defines a class", details: "Creates a blueprint for objects.", color: "text-green-600" };
-      if (trimmedLine.startsWith('return ')) return { line, explanation: "Returns a value", details: "Sends a result back from a function.", color: "text-red-600" };
+      if (trimmedLine.startsWith('def ')) return { line, explanation: "Defines a function", details: "A reusable block of code.", color: "text-blue-600" };
+      if (trimmedLine.startsWith('import ')) return { line, explanation: "Imports a module", details: "Loads external code.", color: "text-purple-600" };
+      if (trimmedLine.startsWith('class ')) return { line, explanation: "Defines a class", details: "A blueprint for objects.", color: "text-green-600" };
+      if (trimmedLine.startsWith('return ')) return { line, explanation: "Returns a value", details: "Sends a result from a function.", color: "text-red-600" };
       if (trimmedLine.includes('=') && !trimmedLine.includes('==')) return { line, explanation: "Variable assignment", details: "Stores a value in memory.", color: "text-yellow-600" };
-      if (trimmedLine.startsWith('print(')) return { line, explanation: "Output statement", details: "Displays information to the console.", color: "text-teal-600" };
+      if (trimmedLine.startsWith('print(')) return { line, explanation: "Output statement", details: "Displays info to the console.", color: "text-teal-600" };
       if (trimmedLine.startsWith('#')) return { line, explanation: "Comment", details: "A note that isn't executed.", color: "text-gray-500" };
       return { line, explanation: "Code statement", details: "A general Python instruction.", color: "text-gray-700" };
     });
     setExplanationData(basicExplanations);
   };
 
-  const toggleChatSize = () => {
-    setChatSize(chatSize === 'normal' ? 'large' : 'normal');
+  const toggleChatSize = () => setChatSize(chatSize === 'normal' ? 'large' : 'normal');
+
+  // New helper function to check if a message is Python-related
+  const isPythonRelated = (message) => {
+    const lowerMessage = message.toLowerCase();
+    const pythonKeywords = [
+        'python', 'code', 'script', 'program', 'error', 'bug', 'debug', 'install', 'run',
+        'function', 'class', 'variable', 'list', 'dict', 'loop', 'import', 'module',
+        'library', 'pandas', 'numpy', 'django', 'flask', 'algorithm', 'data', 'syntax',
+        'ide', 'editor', 'pip', 'venv', 'test', 'efficiency', 'edge case', 'type', 'object'
+    ];
+    return pythonKeywords.some(keyword => lowerMessage.includes(keyword));
   };
 
+  // Final, updated function to handle chatbot messages
   const handleSendMessage = async (message) => {
-    try {
-      const newUserMessage = { role: 'user', content: message };
-      setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
-      const lowerMessage = message.toLowerCase();
-      
-      const isAboutTheCode = lowerMessage.includes('this code') || 
-                             lowerMessage.includes('the code') || 
-                             lowerMessage.includes('my code') ||
-                             lowerMessage.includes('is this right');
+    const newUserMessage = { role: 'user', content: message };
+    setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
 
+    // Guardrail: Check if the message is relevant before calling the AI
+    if (!isPythonRelated(message)) {
+      const botResponse = {
+        role: 'assistant',
+        content: "I'm Luna, your Python assistant. I can only help with questions related to Python programming. How can I assist you with your code?"
+      };
+      setChatMessages(prevMessages => [...prevMessages, botResponse]);
+      return; // Stop here and do not call the AI
+    }
+
+    try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) throw new Error("API key is missing");
-
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      
-      let prompt = `You are Luna, a friendly and helpful Python coding assistant.`;
+      const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.content}`).join('\n');
 
-      if (isAboutTheCode) {
-        prompt += `\n\nThe user has the following Python code in their editor:\n\`\`\`python\n${code}\n\`\`\`\n\nThey asked: "${message}". Please answer their question about the code.`;
-      } else {
-        prompt += `\nThe user asked: "${message}". Answer their question about Python.`;
-      }
+      let prompt = `You are Luna, a helpful Python coding assistant.
+      
+      **Rule**: If the user's last question is not about Python programming, concepts, libraries, or code, you MUST politely decline. State that you are a Python-only assistant. Do not answer the off-topic question.
+      
+      The user has this code in their editor. Refer to it when the user asks about "the code", "it", or asks a follow-up question.
+      \`\`\`python
+      ${code}
+      \`\`\`
+      
+      Conversation History:
+      ${history}
+      
+      Based on all the above, provide a direct, helpful response to the last message from the User.`;
 
       const result = await model.generateContent(prompt);
       const botResponse = { role: 'assistant', content: result.response.text() };
@@ -144,7 +149,6 @@ function PythonComplier() {
         <div className="bg-white rounded-lg shadow-md p-4">
           <h2 className="text-lg font-semibold mb-3">Code Editor</h2>
           <CodeEditor code={code} setCode={setCode} />
-          
           <div className="mt-4">
             <h3 className="text-md font-semibold mb-2">User Input</h3>
             <textarea
@@ -155,7 +159,6 @@ function PythonComplier() {
               onChange={(e) => setUserInput(e.target.value)}
             />
           </div>
-
           <div className="flex justify-between mt-4">
             <button onClick={executeCode} disabled={isExecuting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded disabled:opacity-50">
               {isExecuting ? 'Running...' : 'Run Code'}
