@@ -1,61 +1,50 @@
 require('dotenv').config();
-const express = require('express');
 const http = require('http');
+const express = require('express');
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+const PORT = process.env.PORT || 3001;
 
 wss.on('connection', ws => {
-  let pythonProcess = null;
+  // Spawn a persistent, interactive Python shell for the session.
+  // The '-u' flag is crucial for unbuffered, real-time output.
+  const pythonProcess = spawn('python', ['-u']);
 
+  // Forward output from the Python shell to the frontend client.
+  pythonProcess.stdout.on('data', data => {
+    ws.send(JSON.stringify({ type: 'stdout', data: data.toString() }));
+  });
+
+  // Forward errors from the Python shell to the frontend client.
+  pythonProcess.stderr.on('data', data => {
+    ws.send(JSON.stringify({ type: 'stderr', data: data.toString() }));
+  });
+
+  // Handle messages received from the frontend client.
   ws.on('message', message => {
     try {
-      const data = JSON.parse(message);
+      const parsedMessage = JSON.parse(message);
 
-      if (data.type === 'run' && data.code) {
-        // The Python '-u' flag is crucial for unbuffered, real-time output
-        pythonProcess = spawn('python', ['-u', '-c', data.code]);
-
-        pythonProcess.stdout.on('data', output => {
-          ws.send(JSON.stringify({ type: 'stdout', data: output.toString() }));
-        });
-
-        pythonProcess.stderr.on('data', error => {
-          ws.send(JSON.stringify({ type: 'stderr', data: error.toString() }));
-        });
-
-        pythonProcess.on('close', () => {
-          ws.send(JSON.stringify({ type: 'exit' }));
-          ws.close();
-        });
-
-        pythonProcess.on('error', (err) => {
-            ws.send(JSON.stringify({ type: 'error', data: 'Failed to start Python process.' }));
-            ws.close();
-        });
-
-      } else if (data.type === 'stdin' && pythonProcess) {
-        pythonProcess.stdin.write(data.data);
+      // When the client sends code to run or user input, write it
+      // to the Python shell's standard input.
+      if (parsedMessage.type === 'run' && parsedMessage.code) {
+        pythonProcess.stdin.write(parsedMessage.code + '\n');
+      } else if (parsedMessage.type === 'stdin' && parsedMessage.data) {
+        pythonProcess.stdin.write(parsedMessage.data);
       }
     } catch (e) {
-      console.error("Failed to process message or invalid message format:", e);
+      console.error("Invalid message format:", e);
     }
   });
 
+  // Clean up the Python process when the client disconnects.
   ws.on('close', () => {
-    if (pythonProcess) {
-      pythonProcess.kill();
-    }
+    pythonProcess.kill();
   });
-});
-
-app.get('/', (req, res) => {
-  res.send('Backend server is running!');
 });
 
 server.listen(PORT, () => {
