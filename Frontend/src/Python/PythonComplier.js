@@ -27,28 +27,50 @@ function PythonComplier() {
     }
   ]);
 
-  const executeCode = async () => {
+  // --- MODIFIED CODE STARTS HERE ---
+
+  const executeCode = () => {
     setIsExecuting(true);
     setErrors(null);
     setOutput('');
     setExplanationData([]);
-    try {
-      const response = await fetch('http://localhost:3001/api/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, userInput }),
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const result = await response.json();
-      setOutput(result.output);
-      setErrors(result.error ? { message: result.error } : null);
-    } catch (error) {
-      console.error("Failed to execute code:", error);
-      setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running.' });
-    } finally {
+
+    // Use the environment variable for the backend URL, with a fallback for local development
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'ws://localhost:3001';
+    const ws = new WebSocket(backendUrl);
+
+    // When the connection opens, send the code and user input
+    ws.onopen = () => {
+      console.log('WebSocket connected to:', backendUrl);
+      // The backend expects the input to be a JSON string with 'code' and 'data' keys
+      ws.send(JSON.stringify({ code, data: userInput + '\n' }));
+    };
+
+    // Handle messages received from the backend (output or errors)
+    ws.onmessage = (event) => {
+      const result = JSON.parse(event.data);
+      if (result.type === 'stdout') {
+        setOutput(prev => prev + result.data);
+      } else if (result.type === 'stderr') {
+        setErrors({ message: result.data });
+      }
+    };
+
+    // Handle any connection errors
+    ws.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+      setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running and the WebSocket URL is correct.' });
       setIsExecuting(false);
-    }
+    };
+
+    // When the connection closes, stop the execution state
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      setIsExecuting(false);
+    };
   };
+
+  // --- MODIFIED CODE ENDS HERE ---
 
   const toggleChatSize = () => setChatSize(chatSize === 'normal' ? 'large' : 'normal');
 
