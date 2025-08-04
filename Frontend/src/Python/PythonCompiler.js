@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MessageSquare } from 'lucide-react';
 import CodeEditor from './CodeEditor';
 import Header from './Header';
@@ -6,20 +6,15 @@ import OutputViewer from './OutputViewer';
 import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
-import InteractiveTerminal from './InteractiveTerminal';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function PythonCompiler() {
-  const [code, setCode] = useState('name = input("Enter your name: ")\nprint(f"Hello, {name}!")\n\nage_str = input("Enter your age: ")\nage = int(age_str)\nprint(f"You will be {age + 10} in ten years.")');
-  const [output, setOutput] = useState('');
+  const [code, setCode] = useState('name = input("Enter your name: ")\nprint(f"Hello, {name}!")\nage = input("Enter your age: ")\nprint(f"You are {age} years old.")');
+  const [outputLines, setOutputLines] = useState([]);
   const [errors, setErrors] = useState(null);
   const [viewMode, setViewMode] = useState('output');
   const [explanationData, setExplanationData] = useState([]);
-  
   const [isExecuting, setIsExecuting] = useState(false);
-  const [ws, setWs] = useState(null);
-  const [sessionKey, setSessionKey] = useState(1); // Add this new state for the key
-
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
   const [chatMessages, setChatMessages] = useState([
@@ -30,41 +25,77 @@ function PythonCompiler() {
       isExpanded: false
     }
   ]);
+  const wsRef = useRef(null);
 
-  const handleExecution = () => {
-    if (isExecuting) {
-      if (ws) {
-        ws.close();
-      }
-      stopSession();
-    } else {
-      setErrors(null);
-      setOutput('');
-      setExplanationData([]);
-      setSessionKey(prevKey => prevKey + 1); // Increment the key to force a remount
-      
-      const newWs = new WebSocket('ws://localhost:3001');
-
-      newWs.onopen = () => {
-        console.log('WebSocket connected');
-        newWs.send(JSON.stringify({ type: 'execute', code }));
-        setIsExecuting(true);
-        setWs(newWs);
-      };
-
-      newWs.onclose = () => {
-          console.log('WebSocket disconnected');
-          stopSession();
-      }
+  const executeCode = () => {
+    // Clean up previous state and connections
+    setOutputLines([]);
+    setErrors(null);
+    setExplanationData([]);
+    if (wsRef.current) {
+      wsRef.current.close();
     }
+    
+    setIsExecuting(true);
+    
+    // Establish a new WebSocket connection
+    const ws = new WebSocket('ws://localhost:3001');
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      // Send the code to the backend for execution
+      ws.send(JSON.stringify({ type: 'execute', code }));
+    };
+
+    ws.onmessage = (event) => {
+      const result = JSON.parse(event.data);
+      switch (result.type) {
+        case 'stdout':
+          setOutputLines(prev => [...prev, { type: 'stdout', data: result.data }]);
+          break;
+        case 'stderr':
+          setErrors(prev => ({ 
+            ...prev, 
+            message: (prev ? prev.message : '') + result.data 
+          }));
+          break;
+        case 'exit':
+          setIsExecuting(false);
+          if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+          }
+          break;
+        default:
+          console.warn('Unknown message type:', result.type);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+      setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running.' });
+      setIsExecuting(false);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      setIsExecuting(false);
+      wsRef.current = null;
+    };
   };
 
-  const stopSession = () => {
-    setIsExecuting(false);
-    setWs(null);
+  const handleTerminalInput = (input) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Display the user's input in the terminal
+      setOutputLines(prev => [...prev, { type: 'input', data: input }]);
+      // Send the input to the backend
+      wsRef.current.send(JSON.stringify({ type: 'input', data: input }));
+    }
   };
   
   const toggleChatSize = () => setChatSize(chatSize === 'normal' ? 'large' : 'normal');
+  
   const handleToggleExpand = (messageIndex) => {
     setChatMessages(currentMessages =>
       currentMessages.map((msg, index) =>
@@ -72,6 +103,7 @@ function PythonCompiler() {
       )
     );
   };
+
   const handleSendMessage = async (message) => {
     const newUserMessage = { role: 'user', shortContent: message, expandedContent: null, isExpanded: false };
     setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
@@ -115,21 +147,16 @@ function PythonCompiler() {
     }
   };
 
-
   return (
-    <div className="code-learning-platform bg-gray-50 min-h-screen">
+    <div className="code-learning-platform">
       <Header />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
-        <div className="bg-white rounded-lg shadow-md p-4 flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-8">
+        <div className="bg-white rounded-lg shadow-md p-4">
           <h2 className="text-lg font-semibold mb-3">Code Editor</h2>
           <CodeEditor code={code} setCode={setCode} />
-          
-          <div className="flex justify-between items-center mt-4">
-            <button 
-              onClick={handleExecution} 
-              className={`font-medium py-2 px-4 rounded text-white ${isExecuting ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-            >
-              {isExecuting ? 'Stop Session' : 'Run Interactive'}
+          <div className="flex justify-between mt-4">
+            <button onClick={executeCode} disabled={isExecuting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded disabled:opacity-50">
+              {isExecuting ? 'Running...' : 'Run Code'}
             </button>
             <div className="space-x-2">
               <button onClick={() => setViewMode('output')} className={`py-2 px-4 rounded ${viewMode === 'output' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300'}`}>Output</button>
@@ -138,17 +165,14 @@ function PythonCompiler() {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-md p-4 h-full flex flex-col">
-          {isExecuting && ws ? (
-            <>
-              <h2 className="text-lg font-semibold mb-3">Interactive Terminal</h2>
-              <div className="flex-grow bg-[#1e1e1e] rounded-md overflow-hidden">
-                {/* Add the key prop here */}
-                <InteractiveTerminal key={sessionKey} ws={ws} onSessionEnd={stopSession} />
-              </div>
-            </>
-          ) : viewMode === 'output' ? (
-            <OutputViewer output={output} errors={errors} />
+        <div className="bg-white rounded-lg shadow-md p-4">
+          {viewMode === 'output' ? (
+            <OutputViewer 
+              outputLines={outputLines} 
+              errors={errors} 
+              isExecuting={isExecuting}
+              onInputSubmit={handleTerminalInput}
+            />
           ) : viewMode === 'line-by-line' ? (
             <LineExplanationViewer explanationData={explanationData} />
           ) : (
@@ -156,7 +180,6 @@ function PythonCompiler() {
           )}
         </div>
       </div>
-      
       <div className="fixed bottom-4 right-4 z-50">
         {!showChatbot ? (
           <button onClick={() => setShowChatbot(true)} className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-16 w-16">
