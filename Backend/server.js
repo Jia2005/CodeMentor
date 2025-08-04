@@ -12,48 +12,40 @@ const PORT = process.env.PORT || 3001;
 
 wss.on('connection', ws => {
   console.log('Client connected');
+  let pythonProcess = null;
 
   ws.on('message', message => {
-    console.log('Received execution request');
-    let pythonProcess;
-
     try {
       const parsedMessage = JSON.parse(message);
-      if (!parsedMessage.code) {
-        ws.send(JSON.stringify({ type: 'stderr', data: 'No code provided.' }));
-        return;
-      }
 
-      // Spawn a new Python process for each request, passing the code as an argument.
-      // This cleanly separates the code from the stdin stream.
-      pythonProcess = spawn('python', ['-u', '-c', parsedMessage.code]);
-
-      // Listen for output from the Python script
-      pythonProcess.stdout.on('data', data => {
-        ws.send(JSON.stringify({ type: 'stdout', data: data.toString() }));
-      });
-
-      // Listen for errors
-      pythonProcess.stderr.on('data', data => {
-        ws.send(JSON.stringify({ type: 'stderr', data: data.toString() }));
-      });
-
-      // When the script finishes, close the WebSocket connection
-      pythonProcess.on('exit', (code) => {
-        console.log(`Python process exited with code ${code}`);
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close();
+      if (parsedMessage.type === 'execute' && parsedMessage.code) {
+        if (pythonProcess) {
+          pythonProcess.kill();
         }
-      });
+        
+        console.log('Received execution request');
+        // The '-u' flag is for unbuffered binary stdout and stderr
+        pythonProcess = spawn('python', ['-u', '-c', parsedMessage.code]);
 
-      // If the user provided input, write it to the Python script's stdin
-      if (parsedMessage.data) {
-        pythonProcess.stdin.write(parsedMessage.data + '\n');
+        pythonProcess.stdout.on('data', data => {
+          ws.send(JSON.stringify({ type: 'stdout', data: data.toString() }));
+        });
+
+        pythonProcess.stderr.on('data', data => {
+          ws.send(JSON.stringify({ type: 'stderr', data: data.toString() }));
+        });
+
+        pythonProcess.on('exit', (code) => {
+          console.log(`Python process exited with code ${code}`);
+          if (ws.readyState === WebSocket.OPEN) {
+             ws.send(JSON.stringify({ type: 'exit', code }));
+          }
+          pythonProcess = null;
+        });
+      
+      } else if (parsedMessage.type === 'input' && pythonProcess) {
+        pythonProcess.stdin.write(parsedMessage.data);
       }
-
-      // Signal that no more input is coming
-      pythonProcess.stdin.end();
-
     } catch (e) {
       console.error("Error processing message:", e);
       if (ws.readyState === WebSocket.OPEN) {
@@ -64,6 +56,9 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     console.log('Client disconnected');
+    if (pythonProcess) {
+      pythonProcess.kill();
+    }
   });
 
   ws.on('error', (error) => {
