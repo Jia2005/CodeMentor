@@ -9,7 +9,7 @@ import Chatbot from './Chatbot';
 import InteractiveTerminal from './InteractiveTerminal';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-function PythonComplier() {
+function PythonCompiler() {
   const [code, setCode] = useState('name = input("Enter your name: ")\nprint(f"Hello, {name}!")\n\nage_str = input("Enter your age: ")\nage = int(age_str)\nprint(f"You will be {age + 10} in ten years.")');
   const [output, setOutput] = useState('');
   const [errors, setErrors] = useState(null);
@@ -18,6 +18,7 @@ function PythonComplier() {
   
   const [isExecuting, setIsExecuting] = useState(false);
   const [ws, setWs] = useState(null);
+  const [sessionKey, setSessionKey] = useState(1); // Add this new state for the key
 
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
@@ -40,6 +41,7 @@ function PythonComplier() {
       setErrors(null);
       setOutput('');
       setExplanationData([]);
+      setSessionKey(prevKey => prevKey + 1); // Increment the key to force a remount
       
       const newWs = new WebSocket('ws://localhost:3001');
 
@@ -141,7 +143,8 @@ function PythonComplier() {
             <>
               <h2 className="text-lg font-semibold mb-3">Interactive Terminal</h2>
               <div className="flex-grow bg-[#1e1e1e] rounded-md overflow-hidden">
-                <InteractiveTerminal ws={ws} onSessionEnd={stopSession} />
+                {/* Add the key prop here */}
+                <InteractiveTerminal key={sessionKey} ws={ws} onSessionEnd={stopSession} />
               </div>
             </>
           ) : viewMode === 'output' ? (
@@ -179,4 +182,4 @@ function PythonComplier() {
   );
 }
 
-export default PythonComplier;
+export default PythonCompiler;
