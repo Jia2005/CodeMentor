@@ -32,7 +32,7 @@ function OutputViewer({ outputLines, errors, isExecuting, onInputSubmit }) {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-3">Interactive Output</h2>
+      <h2 className="text-lg font-semibold mb-3">Output</h2>
       <div 
         className="bg-gray-800 text-white p-4 rounded-lg font-mono text-sm overflow-y-auto h-96 flex flex-col"
         onClick={() => inputRef.current?.focus()} // Focus input on click

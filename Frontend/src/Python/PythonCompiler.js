@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { MessageSquare } from 'lucide-react';
 import CodeEditor from './CodeEditor';
 import Header from './Header';
@@ -87,9 +87,7 @@ function PythonCompiler() {
 
   const handleTerminalInput = (input) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      // Display the user's input in the terminal
       setOutputLines(prev => [...prev, { type: 'input', data: input }]);
-      // Send the input to the backend
       wsRef.current.send(JSON.stringify({ type: 'input', data: input }));
     }
   };
@@ -160,8 +158,24 @@ function PythonCompiler() {
             </button>
             <div className="space-x-2">
               <button onClick={() => setViewMode('output')} className={`py-2 px-4 rounded ${viewMode === 'output' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300'}`}>Output</button>
-              <button onClick={() => setViewMode('line-by-line')} disabled={explanationData.length === 0} className={`py-2 px-4 rounded ${viewMode === 'line-by-line' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300'}`}>Line Explanation</button>
-              <button onClick={() => setViewMode('animated')} disabled={explanationData.length === 0} className={`py-2 px-4 rounded ${viewMode === 'animated' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300'}`}>Animation</button>
+              <button 
+                onClick={() => setViewMode('line-by-line')}
+                className={`py-2 px-4 rounded ${viewMode === 'line-by-line' 
+                  ? 'bg-indigo-100 text-indigo-800' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                disabled={explanationData.length === 0}
+              >
+                Line Explanation
+              </button>
+              <button 
+                onClick={() => setViewMode('animated')}
+                className={`py-2 px-4 rounded ${viewMode === 'animated' 
+                  ? 'bg-indigo-100 text-indigo-800' 
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
+                disabled={explanationData.length === 0}
+              >
+                Animation
+              </button>
             </div>
           </div>
         </div>
