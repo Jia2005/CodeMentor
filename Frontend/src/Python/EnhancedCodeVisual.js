@@ -1,5 +1,3 @@
-import React from 'react';
-
 function EnhancedCodeVisual({ step, explanationData, executionState }) {
   const currentLine = explanationData[step]?.line.trim();
 

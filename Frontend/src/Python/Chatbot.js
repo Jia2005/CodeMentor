@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronsUpDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import image from './../Images/chatbot.png';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import EnhancedCodeVisual from './EnhancedCodeVisual';
 
 function CodeVisualizer({ code, explanationData }) {
@@ -87,7 +87,7 @@ function CodeVisualizer({ code, explanationData }) {
   }
 
   return (
-    <div className="code-visualizer">
+    <div className="code-visualizer h-[600px] overflow-y-auto">
       <h2 className="text-lg font-semibold mb-3">Visual Explanation</h2>
       <div className="flex justify-between mb-4">
         <button
