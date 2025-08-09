@@ -6,7 +6,6 @@ import OutputViewer from './OutputViewer';
 import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
-// NEW: Import the Google Generative AI library
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function PythonCompiler() {
@@ -28,7 +27,6 @@ function PythonCompiler() {
   ]);
   const wsRef = useRef(null);
 
-  // NEW: Helper function to get explanations from the AI
   const getExplanation = async (codeToExplain) => {
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
@@ -66,7 +64,6 @@ function PythonCompiler() {
     }
   };
 
-  // MODIFIED: executeCode is now an async function
   const executeCode = async () => {
     setOutputLines([]);
     setErrors(null);
@@ -76,10 +73,8 @@ function PythonCompiler() {
     }
     setIsExecuting(true);
 
-    // NEW: Start the explanation generation in parallel
     const explanationPromise = getExplanation(code);
     
-    // This part for the output terminal runs as before
     const ws = new WebSocket('ws://localhost:3001');
     wsRef.current = ws;
     ws.onopen = () => {
@@ -120,7 +115,6 @@ function PythonCompiler() {
       wsRef.current = null;
     };
 
-    // NEW: Wait for the AI to respond and then update the state
     const newExplanationData = await explanationPromise;
     setExplanationData(newExplanationData);
   };
@@ -142,7 +136,6 @@ function PythonCompiler() {
     );
   };
 
-  // This function remains the same as your original
   const handleSendMessage = async (message) => {
     const newUserMessage = { role: 'user', shortContent: message, expandedContent: null, isExpanded: false };
     setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
@@ -150,7 +143,7 @@ function PythonCompiler() {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) throw new Error("API key is missing");
       const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Adjusted model
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.shortContent}`).join('\n');
       let prompt = `You are Luna, a helpful and friendly Python coding assistant.
       **Core Instructions**:
@@ -197,26 +190,43 @@ function PythonCompiler() {
             <button onClick={executeCode} disabled={isExecuting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded disabled:opacity-50">
               {isExecuting ? 'Running...' : 'Run Code'}
             </button>
-            <div className="space-x-2">
+            <div className="space-x-2 flex items-center">
               <button onClick={() => setViewMode('output')} className={`py-2 px-4 rounded ${viewMode === 'output' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300'}`}>Output</button>
-              <button
-                onClick={() => setViewMode('line-by-line')}
-                className={`py-2 px-4 rounded ${viewMode === 'line-by-line'
-                  ? 'bg-indigo-100 text-indigo-800'
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-                disabled={explanationData.length === 0}
-              >
-                Line Explanation
-              </button>
-              <button
-                onClick={() => setViewMode('animated')}
-                className={`py-2 px-4 rounded ${viewMode === 'animated'
-                  ? 'bg-indigo-100 text-indigo-800'
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
-                disabled={explanationData.length === 0}
-              >
-                Animation
-              </button>
+              
+              <div className="relative group">
+                <button
+                  onClick={() => setViewMode('line-by-line')}
+                  disabled={explanationData.length === 0}
+                  className={`py-2 px-4 rounded ${viewMode === 'line-by-line'
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
+                >
+                  Line Explanation
+                </button>
+                {explanationData.length === 0 && (
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max whitespace-nowrap px-3 py-1.5 text-sm bg-gray-900 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    Run code to generate explanation
+                  </span>
+                )}
+              </div>
+
+              <div className="relative group">
+                <button
+                  onClick={() => setViewMode('animated')}
+                  disabled={explanationData.length === 0}
+                  className={`py-2 px-4 rounded ${viewMode === 'animated'
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
+                >
+                  Animation
+                </button>
+                {explanationData.length === 0 && (
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max whitespace-nowrap px-3 py-1.5 text-sm bg-gray-900 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    Run code to generate animation
+                  </span>
+                )}
+              </div>
+
             </div>
           </div>
         </div>

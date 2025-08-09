@@ -5,7 +5,7 @@ function LineExplanationViewer({ explanationData }) {
     <div>
       <h2 className="text-lg font-semibold mb-3">Line-by-Line Explanation</h2>
       {explanationData.length > 0 ? (
-        <div className="overflow-auto max-h-96">
+        <div className="overflow-auto h-96">
           {explanationData.filter(item => !item.skip).map((item, index) => (
             <div key={index} className="mb-4 p-3 bg-gray-50 rounded border-l-4 border-indigo-400">
               <div className="font-mono text-sm bg-gray-800 text-white p-2 rounded mb-2">{item.line}</div>
