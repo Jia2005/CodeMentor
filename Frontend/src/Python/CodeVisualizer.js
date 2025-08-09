@@ -25,8 +25,6 @@ function CodeVisualizer({ code, explanationData }) {
   useEffect(() => {
     if (explanationData.length === 0) return;
 
-    // Use a functional update to safely update state based on the previous state
-    // This resolves the missing dependency warning without causing infinite loops.
     setExecutionState(prevExecutionState => {
       const currentLine = explanationData[currentStep]?.line.trim();
       const newExecutionState = { ...prevExecutionState };
@@ -50,7 +48,6 @@ function CodeVisualizer({ code, explanationData }) {
               const args = argsMatch[1].split(',').map(arg => arg.trim());
               newExecutionState.variables[funcName].params = args;
               
-              // FIX 1: Replaced harmful 'eval' with safe, explicit calculation.
               if (funcName === 'calculate_sum') {
                 const result = args.reduce((sum, current) => sum + parseInt(current, 10), 0);
                 newExecutionState.variables[varName] = { type: 'variable', value: result };
@@ -83,7 +80,6 @@ function CodeVisualizer({ code, explanationData }) {
       newExecutionState.currentLine = currentStep;
       return newExecutionState;
     });
-  // FIX 2: The dependency array is now correct because we use a functional update above.
   }, [currentStep, explanationData]);
 
   if (!explanationData.length) {
@@ -94,10 +90,39 @@ function CodeVisualizer({ code, explanationData }) {
     <div className="code-visualizer">
       <h2 className="text-lg font-semibold mb-3">Visual Explanation</h2>
       <div className="flex justify-between mb-4">
-        {/* ... a bunch of buttons ... */}
+        <button
+          onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+          disabled={currentStep === 0}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-3 rounded disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className={`font-medium py-1 px-3 rounded ${isPlaying
+            ? 'bg-red-500 hover:bg-red-600 text-white'
+            : 'bg-green-500 hover:bg-green-600 text-white'}`}
+        >
+          {isPlaying ? 'Pause' : 'Play'}
+        </button>
+        <button
+          onClick={() => setCurrentStep(Math.min(explanationData.length - 1, currentStep + 1))}
+          disabled={currentStep === explanationData.length - 1}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-3 rounded disabled:opacity-50"
+        >
+          Next
+        </button>
       </div>
       <div className="border-2 border-indigo-200 rounded-lg p-4 bg-white">
-        {/* ... a bunch of divs for progress bar ... */}
+        <div className="mb-4">
+          <div className="text-sm text-gray-500">Step {currentStep + 1} of {explanationData.length}</div>
+          <div className="h-2 bg-gray-200 rounded-full mt-1">
+            <div
+              className="h-2 bg-indigo-600 rounded-full"
+              style={{ width: `${((currentStep + 1) / explanationData.length) * 100}%` }}
+            ></div>
+          </div>
+        </div>
         <div className="bg-gray-50 p-4 rounded-lg mb-4">
           <pre className="font-mono text-sm overflow-x-auto whitespace-pre-wrap">
             {explanationData[currentStep]?.line}
