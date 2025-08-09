@@ -34,7 +34,7 @@ function OutputViewer({ outputLines, errors, isExecuting, onInputSubmit }) {
     <div>
       <h2 className="text-lg font-semibold mb-3">Output</h2>
       <div 
-        className="bg-black text-white p-4 rounded-lg font-mono text-sm overflow-y-auto h-96 flex flex-col"
+        className="bg-[#1e1e1e] text-white p-4 rounded-lg font-mono text-sm overflow-y-auto h-[500px] flex flex-col"
         onClick={() => inputRef.current?.focus()} // Focus input on click
       >
         <div className="flex-grow whitespace-pre-wrap">
