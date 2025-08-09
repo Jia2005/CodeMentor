@@ -6,6 +6,7 @@ import OutputViewer from './OutputViewer';
 import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
+// NEW: Import the Google Generative AI library
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function PythonCompiler() {
@@ -27,27 +28,64 @@ function PythonCompiler() {
   ]);
   const wsRef = useRef(null);
 
-  const executeCode = () => {
-    // Clean up previous state and connections
+  // NEW: Helper function to get explanations from the AI
+  const getExplanation = async (codeToExplain) => {
+    try {
+      const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+      if (!API_KEY) throw new Error("API key is missing");
+      
+      const genAI = new GoogleGenerativeAI(API_KEY);
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        generationConfig: { responseMimeType: "application/json" }
+      });
+
+      const prompt = `
+        Analyze the following Python code. Provide a step-by-step explanation for each line.
+        Respond with a JSON array of objects. Each object must have the following properties:
+        - "line": a string containing the exact line of code.
+        - "explanation": a string with a short, one-sentence explanation of what the line does.
+        - "details": a string with a more detailed, beginner-friendly explanation.
+        - "color": a string for a UI color hint, like "text-blue-600" for definitions or "text-green-600" for operations.
+        - "skip": a boolean, 'true' only for comments or blank lines that should be skipped in an animation.
+
+        Here is the code:
+        \`\`\`python
+        ${codeToExplain}
+        \`\`\`
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const jsonText = response.text();
+      return JSON.parse(jsonText);
+
+    } catch (error) {
+      console.error("Error fetching explanation:", error);
+      return [];
+    }
+  };
+
+  // MODIFIED: executeCode is now an async function
+  const executeCode = async () => {
     setOutputLines([]);
     setErrors(null);
     setExplanationData([]);
     if (wsRef.current) {
       wsRef.current.close();
     }
-    
     setIsExecuting(true);
+
+    // NEW: Start the explanation generation in parallel
+    const explanationPromise = getExplanation(code);
     
-    // Establish a new WebSocket connection
+    // This part for the output terminal runs as before
     const ws = new WebSocket('ws://localhost:3001');
     wsRef.current = ws;
-
     ws.onopen = () => {
       console.log('WebSocket connected');
-      // Send the code to the backend for execution
       ws.send(JSON.stringify({ type: 'execute', code }));
     };
-
     ws.onmessage = (event) => {
       const result = JSON.parse(event.data);
       switch (result.type) {
@@ -55,9 +93,9 @@ function PythonCompiler() {
           setOutputLines(prev => [...prev, { type: 'stdout', data: result.data }]);
           break;
         case 'stderr':
-          setErrors(prev => ({ 
-            ...prev, 
-            message: (prev ? prev.message : '') + result.data 
+          setErrors(prev => ({
+            ...prev,
+            message: (prev ? prev.message : '') + result.data
           }));
           break;
         case 'exit':
@@ -71,20 +109,22 @@ function PythonCompiler() {
           console.warn('Unknown message type:', result.type);
       }
     };
-
     ws.onerror = (error) => {
       console.error("WebSocket Error:", error);
       setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running.' });
       setIsExecuting(false);
     };
-
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       setIsExecuting(false);
       wsRef.current = null;
     };
-  };
 
+    // NEW: Wait for the AI to respond and then update the state
+    const newExplanationData = await explanationPromise;
+    setExplanationData(newExplanationData);
+  };
+  
   const handleTerminalInput = (input) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       setOutputLines(prev => [...prev, { type: 'input', data: input }]);
@@ -102,6 +142,7 @@ function PythonCompiler() {
     );
   };
 
+  // This function remains the same as your original
   const handleSendMessage = async (message) => {
     const newUserMessage = { role: 'user', shortContent: message, expandedContent: null, isExpanded: false };
     setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
@@ -109,7 +150,7 @@ function PythonCompiler() {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) throw new Error("API key is missing");
       const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Adjusted model
       const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.shortContent}`).join('\n');
       let prompt = `You are Luna, a helpful and friendly Python coding assistant.
       **Core Instructions**:
@@ -158,19 +199,19 @@ function PythonCompiler() {
             </button>
             <div className="space-x-2">
               <button onClick={() => setViewMode('output')} className={`py-2 px-4 rounded ${viewMode === 'output' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300'}`}>Output</button>
-              <button 
+              <button
                 onClick={() => setViewMode('line-by-line')}
-                className={`py-2 px-4 rounded ${viewMode === 'line-by-line' 
-                  ? 'bg-indigo-100 text-indigo-800' 
+                className={`py-2 px-4 rounded ${viewMode === 'line-by-line'
+                  ? 'bg-indigo-100 text-indigo-800'
                   : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
                 disabled={explanationData.length === 0}
               >
                 Line Explanation
               </button>
-              <button 
+              <button
                 onClick={() => setViewMode('animated')}
-                className={`py-2 px-4 rounded ${viewMode === 'animated' 
-                  ? 'bg-indigo-100 text-indigo-800' 
+                className={`py-2 px-4 rounded ${viewMode === 'animated'
+                  ? 'bg-indigo-100 text-indigo-800'
                   : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}
                 disabled={explanationData.length === 0}
               >
@@ -181,9 +222,9 @@ function PythonCompiler() {
         </div>
         <div className="bg-white rounded-lg shadow-md p-4">
           {viewMode === 'output' ? (
-            <OutputViewer 
-              outputLines={outputLines} 
-              errors={errors} 
+            <OutputViewer
+              outputLines={outputLines}
+              errors={errors}
               isExecuting={isExecuting}
               onInputSubmit={handleTerminalInput}
             />
