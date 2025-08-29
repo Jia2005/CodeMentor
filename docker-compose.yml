@@ -1,11 +1,12 @@
 version: '3.8'
 
 services:
-  # Backend Service Configuration
-  backend:
+  server:
     build: ./Backend
     ports:
       - "3001:3001"
     volumes:
+      # Syncs your local Backend folder with the container's /app folder
       - ./Backend:/app
+      # Prevents the local node_modules from overwriting the container's
       - /app/node_modules
