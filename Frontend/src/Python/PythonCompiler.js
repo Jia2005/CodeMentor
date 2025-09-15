@@ -7,6 +7,7 @@ import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+
 function PythonCompiler() {
   const [code, setCode] = useState('name = input("Enter your name: ")\nprint(f"Hello, {name}!")\nage = input("Enter your age: ")\nprint(f"You are {age} years old.")');
   const [outputLines, setOutputLines] = useState([]);
@@ -118,15 +119,21 @@ function PythonCompiler() {
         case 'error':
           setErrors({ message: result.data });
           setIsExecuting(false);
-          const errorMessage = {
+          const initialMessage = {
             role: 'assistant',
-            shortContent: `Oops! It looks like there's an error on line ${result.line}.`,
+            shortContent: "Hey! I've detected an error in your code. Would you like some help?",
+            expandedContent: null,
+            isExpanded: false,
+          };
+          const errorMessageWithButtons = {
+            role: 'assistant',
+            shortContent: `Error on line ${result.line}.`,
             expandedContent: result.data,
             isExpanded: false,
             isError: true,
             errorDetails: { line: result.line, data: result.data }
           };
-          setChatMessages(prev => [...prev, errorMessage]);
+          setChatMessages(prev => [...prev, initialMessage, errorMessageWithButtons]);
           if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
