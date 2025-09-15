@@ -98,7 +98,7 @@ function PythonCompiler() {
     }
     setIsExecuting(true);
     const explanationPromise = getExplanation(code);
-    const ws = new WebSocket('ws://localhost:3001');
+    const ws = new WebSocket(process.env.REACT_APP_WEBSOCKET_URL);
     wsRef.current = ws;
     ws.onopen = () => {
       console.log('WebSocket connected');
