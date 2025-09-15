@@ -25,6 +25,7 @@ function PythonCompiler() {
       isExpanded: false
     }
   ]);
+  const [showHelpBubble, setShowHelpBubble] = useState(false);
   const wsRef = useRef(null);
   const getExplanation = async (codeToExplain, errorData = null) => {
     try {
@@ -119,21 +120,16 @@ function PythonCompiler() {
         case 'error':
           setErrors({ message: result.data });
           setIsExecuting(false);
-          const initialMessage = {
+          setShowHelpBubble(true);
+          const errorMessage = {
             role: 'assistant',
-            shortContent: "Hey! I've detected an error in your code. Would you like some help?",
-            expandedContent: null,
-            isExpanded: false,
-          };
-          const errorMessageWithButtons = {
-            role: 'assistant',
-            shortContent: `Error on line ${result.line}.`,
+            shortContent: `Oops! It looks like there's an error on line ${result.line}.`,
             expandedContent: result.data,
             isExpanded: false,
             isError: true,
             errorDetails: { line: result.line, data: result.data }
           };
-          setChatMessages(prev => [...prev, initialMessage, errorMessageWithButtons]);
+          setChatMessages(prev => [...prev, errorMessage]);
           if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
@@ -282,14 +278,22 @@ function PythonCompiler() {
           )}
         </div>
       </div>
+      {showHelpBubble && (
+        <div
+          onClick={() => {
+            setShowChatbot(true);
+            setShowHelpBubble(false);
+          }}
+          className="fixed bottom-24 right-4 z-50 p-3 rounded-full bg-indigo-600 text-white shadow-lg cursor-pointer animate-bounce transition-all"
+        >
+          Want help?
+        </div>
+      )}
       <div className="fixed bottom-4 right-4 z-50">
         {!showChatbot ? (
           <button onClick={() => setShowChatbot(true)} className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-16 w-16">
             <div className='absolute'>
               <MessageSquare size={30} className="text-white" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full">
-                <span className="absolute top-0 left-0 w-full h-full rounded-full bg-green-400 animate-ping opacity-75"></span>
-              </div>
             </div>
           </button>
         ) : (
