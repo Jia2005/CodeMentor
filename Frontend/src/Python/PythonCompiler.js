@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { MessageSquare, AlertTriangle, Lightbulb, X } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import CodeEditor from './CodeEditor';
 import Header from './Header';
 import OutputViewer from './OutputViewer';
@@ -7,7 +7,6 @@ import LineExplanationViewer from './LineExplanationViewer';
 import CodeVisualizer from './CodeVisualizer';
 import Chatbot from './Chatbot';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
 function PythonCompiler() {
   const [code, setCode] = useState('name = input("Enter your name: ")\nprint(f"Hello, {name}!")\nage = input("Enter your age: ")\nprint(f"You are {age} years old.")');
   const [outputLines, setOutputLines] = useState([]);
@@ -25,12 +24,7 @@ function PythonCompiler() {
       isExpanded: false
     }
   ]);
-  const [showDebugPopup, setShowDebugPopup] = useState(false);
-  const [debugError, setDebugError] = useState(null);
-  const [debugExplanation, setDebugExplanation] = useState({ hint: '', correctCode: '' });
-
   const wsRef = useRef(null);
-
   const getExplanation = async (codeToExplain, errorData = null) => {
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
@@ -40,7 +34,6 @@ function PythonCompiler() {
         model: "gemini-1.5-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
-
       let prompt = `Analyze the following Python code. Provide a step-by-step explanation for each line.
         Respond with a JSON array of objects. Each object must have the following properties:
         - "line": a string containing the exact line of code.
@@ -74,19 +67,31 @@ function PythonCompiler() {
       return [];
     }
   };
-
-  const handleDebugHelpRequest = async () => {
-    const aiResponse = await getExplanation(code, debugError.data);
-    setDebugExplanation(aiResponse);
+  const handleDebugHelpRequest = async (errorDetails) => {
+    const aiResponse = await getExplanation(code, errorDetails.data);
+    const botResponse = {
+      role: 'assistant',
+      shortContent: aiResponse.hint,
+      expandedContent: `Here's a more detailed look at the error:\n\n${errorDetails.data}`,
+      isExpanded: false
+    };
+    setChatMessages(prevMessages => [...prevMessages, botResponse]);
   };
-
+  const handleShowCorrectCode = async (errorDetails) => {
+    const aiResponse = await getExplanation(code, errorDetails.data);
+    const botResponse = {
+      role: 'assistant',
+      shortContent: "Here is the corrected code:",
+      expandedContent: `\`\`\`python\n${aiResponse.correctCode}\n\`\`\``,
+      isExpanded: false
+    };
+    setChatMessages(prevMessages => [...prevMessages, botResponse]);
+    setCode(aiResponse.correctCode);
+  };
   const executeCode = async () => {
     setOutputLines([]);
     setErrors(null);
     setExplanationData([]);
-    setShowDebugPopup(false);
-    setDebugError(null);
-
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -94,12 +99,10 @@ function PythonCompiler() {
     const explanationPromise = getExplanation(code);
     const ws = new WebSocket('ws://localhost:3001');
     wsRef.current = ws;
-
     ws.onopen = () => {
       console.log('WebSocket connected');
       ws.send(JSON.stringify({ type: 'execute', code }));
     };
-
     ws.onmessage = (event) => {
       const result = JSON.parse(event.data);
       switch (result.type) {
@@ -113,10 +116,17 @@ function PythonCompiler() {
           }));
           break;
         case 'error':
-          setDebugError(result);
-          setShowDebugPopup(true);
           setErrors({ message: result.data });
           setIsExecuting(false);
+          const errorMessage = {
+            role: 'assistant',
+            shortContent: `Oops! It looks like there's an error on line ${result.line}.`,
+            expandedContent: result.data,
+            isExpanded: false,
+            isError: true,
+            errorDetails: { line: result.line, data: result.data }
+          };
+          setChatMessages(prev => [...prev, errorMessage]);
           if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
@@ -133,32 +143,26 @@ function PythonCompiler() {
           console.warn('Unknown message type:', result.type);
       }
     };
-
     ws.onerror = (error) => {
       console.error("WebSocket Error:", error);
       setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running.' });
       setIsExecuting(false);
     };
-
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       setIsExecuting(false);
       wsRef.current = null;
     };
-
     const newExplanationData = await explanationPromise;
     setExplanationData(newExplanationData);
   };
-
   const handleTerminalInput = (input) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       setOutputLines(prev => [...prev, { type: 'input', data: input }]);
       wsRef.current.send(JSON.stringify({ type: 'input', data: input }));
     }
   };
-
   const toggleChatSize = () => setChatSize(chatSize === 'normal' ? 'large' : 'normal');
-
   const handleToggleExpand = (messageIndex) => {
     setChatMessages(currentMessages =>
       currentMessages.map((msg, index) =>
@@ -166,7 +170,6 @@ function PythonCompiler() {
       )
     );
   };
-
   const handleSendMessage = async (message) => {
     const newUserMessage = { role: 'user', shortContent: message, expandedContent: null, isExpanded: false };
     setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
@@ -209,61 +212,6 @@ function PythonCompiler() {
       setChatMessages(prevMessages => [...prevMessages, errorResponse]);
     }
   };
-
-  const DebugPopup = ({ error, explanation, onHint, onShowCorrectCode, onClose }) => {
-    const [showHint, setShowHint] = useState(false);
-    const [showCode, setShowCode] = useState(false);
-    return (
-      <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-[100]">
-        <div className="bg-white rounded-lg shadow-xl p-6 w-11/12 md:w-1/2 lg:w-1/3">
-          <div className="flex justify-between items-start mb-4">
-            <h3 className="text-xl font-bold flex items-center text-red-600">
-              <AlertTriangle className="mr-2" /> Error Detected!
-            </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <X size={24} />
-            </button>
-          </div>
-          <p className="text-gray-700 mb-4">
-            It looks like your code has an error. Would you like some help with this?
-          </p>
-          <div className="flex space-x-4 mb-4">
-            <button
-              onClick={() => {
-                setShowHint(true);
-                onHint();
-              }}
-              className="flex-1 bg-indigo-600 text-white font-medium py-2 px-4 rounded hover:bg-indigo-700 disabled:opacity-50"
-            >
-              <Lightbulb size={16} className="inline mr-2" />
-              Give Me a Hint
-            </button>
-            <button
-              onClick={() => {
-                setShowCode(true);
-                onShowCorrectCode();
-              }}
-              className="flex-1 bg-green-600 text-white font-medium py-2 px-4 rounded hover:bg-green-700 disabled:opacity-50"
-              disabled={!explanation.correctCode}
-            >
-              Show Correct Code
-            </button>
-          </div>
-          {(showHint || showCode) && (
-            <div className="bg-gray-100 p-4 rounded-md mt-4">
-              {showHint && <p>{explanation.hint}</p>}
-              {showCode && (
-                <pre className="bg-gray-800 text-white p-2 rounded overflow-x-auto">
-                  {explanation.correctCode}
-                </pre>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="code-learning-platform">
       <Header />
@@ -345,20 +293,12 @@ function PythonCompiler() {
             messages={chatMessages}
             onSendMessage={handleSendMessage}
             onToggleExpand={handleToggleExpand}
+            onHint={handleDebugHelpRequest}
+            onShowCorrectCode={handleShowCorrectCode}
           />
         )}
       </div>
-      {showDebugPopup && (
-        <DebugPopup
-          error={debugError}
-          explanation={debugExplanation}
-          onHint={handleDebugHelpRequest}
-          onShowCorrectCode={() => setCode(debugExplanation.correctCode)}
-          onClose={() => setShowDebugPopup(false)}
-        />
-      )}
     </div>
   );
 }
-
 export default PythonCompiler;

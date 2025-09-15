@@ -3,16 +3,13 @@ import { Send, ChevronsUpDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import image from './../Images/chatbot.png';
 import userAvatar from './../Images/user.png';
-
-function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSendMessage, onToggleExpand }) {
+function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSendMessage, onToggleExpand, onHint, onShowCorrectCode }) {
   const [userInput, setUserInput] = useState('');
   const [aiThinking, setAiThinking] = useState(false);
   const chatEndRef = useRef(null);
-
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
   const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     setAiThinking(true);
@@ -20,12 +17,10 @@ function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSe
     setUserInput('');
     setAiThinking(false);
   };
-
   const chatSizeClasses = {
     normal: "w-full sm:w-[350px] h-[400px]",
     large: "w-full sm:w-[600px] h-[600px]"
   };
-
   return (
     <div className={`fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-xl flex flex-col ${chatSizeClasses[chatSize]} transition-all duration-300`}>
       <div className="bg-indigo-600 text-white p-3 rounded-t-lg flex justify-between items-center cursor-pointer" onDoubleClick={toggleChatSize}>
@@ -65,13 +60,24 @@ function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSe
                     </div>
                   )}
                 </div>
-                {msg.expandedContent && !msg.isExpanded && (
-                  <button
-                    onClick={() => onToggleExpand(index)}
-                    className="mt-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800"
-                  >
-                    Learn More
-                  </button>
+                {msg.isError ? (
+                  <div className="flex space-x-2 mt-4">
+                    <button onClick={() => onHint(msg.errorDetails)} className="text-xs bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600">
+                      Hint
+                    </button>
+                    <button onClick={() => onShowCorrectCode(msg.errorDetails)} className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600">
+                      Show Correct Code
+                    </button>
+                  </div>
+                ) : (
+                  msg.expandedContent && !msg.isExpanded && (
+                    <button
+                      onClick={() => onToggleExpand(index)}
+                      className="mt-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800"
+                    >
+                      Learn More
+                    </button>
+                  )
                 )}
               </div>
             </div>
@@ -111,5 +117,4 @@ function Chatbot({ setShowChatbot, chatSize, toggleChatSize, messages = [], onSe
     </div>
   );
 }
-
 export default Chatbot;
