@@ -15,6 +15,7 @@ function PythonCompiler() {
   const [viewMode, setViewMode] = useState('output');
   const [explanationData, setExplanationData] = useState([]);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [chatSize, setChatSize] = useState('normal');
   const [chatMessages, setChatMessages] = useState([
@@ -97,6 +98,7 @@ function PythonCompiler() {
       wsRef.current.close();
     }
     setIsExecuting(true);
+    setIsGeneratingExplanation(true);
     const explanationPromise = getExplanation(code);
     const ws = new WebSocket(process.env.REACT_APP_WEBSOCKET_URL);
     wsRef.current = ws;
@@ -161,8 +163,14 @@ function PythonCompiler() {
       setIsExecuting(false);
       wsRef.current = null;
     };
-    const newExplanationData = await explanationPromise;
-    setExplanationData(newExplanationData);
+    try {
+      const newExplanationData = await explanationPromise;
+      setExplanationData(newExplanationData);
+    } catch (error) {
+      console.error("Error generating explanation:", error);
+    } finally {
+      setIsGeneratingExplanation(false);
+    }
   };
   const handleTerminalInput = (input) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -236,14 +244,14 @@ function PythonCompiler() {
               <div className="relative group">
                 <button
                   onClick={() => setViewMode('line-by-line')}
-                  disabled={explanationData.length === 0}
+                  disabled={explanationData.length === 0 || isGeneratingExplanation}
                   className={`py-2 px-4 rounded ${viewMode === 'line-by-line'
                       ? 'bg-indigo-100 text-indigo-800'
                       : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
                 >
                   Line Explanation
                 </button>
-                {explanationData.length === 0 && (
+                {(explanationData.length === 0 || isGeneratingExplanation) && (
                   <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max whitespace-nowrap px-3 py-1.5 text-sm bg-gray-900 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Run code to generate explanation
                   </span>
@@ -252,14 +260,14 @@ function PythonCompiler() {
               <div className="relative group">
                 <button
                   onClick={() => setViewMode('animated')}
-                  disabled={explanationData.length === 0}
+                  disabled={explanationData.length === 0 || isGeneratingExplanation}
                   className={`py-2 px-4 rounded ${viewMode === 'animated'
                       ? 'bg-indigo-100 text-indigo-800'
                       : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
                 >
                   Animation
                 </button>
-                {explanationData.length === 0 && (
+                {(explanationData.length === 0 || isGeneratingExplanation) && (
                   <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max whitespace-nowrap px-3 py-1.5 text-sm bg-gray-900 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Run code to generate animation
                   </span>
