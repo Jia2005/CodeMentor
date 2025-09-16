@@ -119,7 +119,6 @@ function PythonCompiler() {
         case 'error':
           setErrors({ message: result.data });
           setIsExecuting(false);
-          // Set showChatbot to true when an error is detected
           setShowChatbot(true);
           const initialMessage = {
             role: 'assistant',
