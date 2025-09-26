@@ -1,4 +1,4 @@
-# CodeMentor 🐍✨
+# CodeMentor - Python Learning Platform 🐍✨
 
 You know that sinking feeling when your Python code works, but you have absolutely no idea why? 😰 When variables seem to vanish into thin air and functions feel like magic spells you're casting blindly?
 
