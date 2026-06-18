@@ -34,7 +34,7 @@ function PythonCompiler() {
       if (!API_KEY) throw new Error("API key is missing");
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
       let prompt = `Analyze the following Python code. Provide a step-by-step explanation for each line.
@@ -198,7 +198,7 @@ function PythonCompiler() {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
       if (!API_KEY) throw new Error("API key is missing");
       const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.shortContent}`).join('\n');
       const prompt = `You are Luna, a helpful and friendly Python coding assistant.
       **Core Instructions**:
