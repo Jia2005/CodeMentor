@@ -27,6 +27,7 @@ function PythonCompiler() {
     }
   ]);
   const wsRef = useRef(null);
+
   const getExplanation = async (codeToExplain, errorData = null) => {
     try {
       const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
@@ -69,6 +70,7 @@ function PythonCompiler() {
       return [];
     }
   };
+
   const handleDebugHelpRequest = async (errorDetails) => {
     const aiResponse = await getExplanation(code, errorDetails.data);
     const botResponse = {
@@ -79,6 +81,7 @@ function PythonCompiler() {
     };
     setChatMessages(prevMessages => [...prevMessages, botResponse]);
   };
+
   const handleShowCorrectCode = async (errorDetails) => {
     const aiResponse = await getExplanation(code, errorDetails.data);
     const botResponse = {
@@ -90,6 +93,7 @@ function PythonCompiler() {
     setChatMessages(prevMessages => [...prevMessages, botResponse]);
     setCode(aiResponse.correctCode);
   };
+
   const executeCode = async () => {
     setOutputLines([]);
     setErrors(null);
@@ -103,7 +107,6 @@ function PythonCompiler() {
     const ws = new WebSocket(process.env.REACT_APP_WEBSOCKET_URL);
     wsRef.current = ws;
     ws.onopen = () => {
-      console.log('WebSocket connected');
       ws.send(JSON.stringify({ type: 'execute', code }));
     };
     ws.onmessage = (event) => {
@@ -150,16 +153,14 @@ function PythonCompiler() {
           }
           break;
         default:
-          console.warn('Unknown message type:', result.type);
+          break;
       }
     };
     ws.onerror = (error) => {
-      console.error("WebSocket Error:", error);
       setErrors({ message: 'Could not connect to the execution server.', suggestions: 'Ensure the backend is running.' });
       setIsExecuting(false);
     };
     ws.onclose = () => {
-      console.log('WebSocket disconnected');
       setIsExecuting(false);
       wsRef.current = null;
     };
@@ -172,13 +173,16 @@ function PythonCompiler() {
       setIsGeneratingExplanation(false);
     }
   };
+
   const handleTerminalInput = (input) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       setOutputLines(prev => [...prev, { type: 'input', data: input }]);
       wsRef.current.send(JSON.stringify({ type: 'input', data: input }));
     }
   };
+
   const toggleChatSize = () => setChatSize(chatSize === 'normal' ? 'large' : 'normal');
+
   const handleToggleExpand = (messageIndex) => {
     setChatMessages(currentMessages =>
       currentMessages.map((msg, index) =>
@@ -186,6 +190,7 @@ function PythonCompiler() {
       )
     );
   };
+
   const handleSendMessage = async (message) => {
     const newUserMessage = { role: 'user', shortContent: message, expandedContent: null, isExpanded: false };
     setChatMessages(prevMessages => [...prevMessages, newUserMessage]);
@@ -195,7 +200,7 @@ function PythonCompiler() {
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const history = [...chatMessages, newUserMessage].map(msg => `${msg.role === 'user' ? 'User' : 'Luna'}: ${msg.shortContent}`).join('\n');
-      let prompt = `You are Luna, a helpful and friendly Python coding assistant.
+      const prompt = `You are Luna, a helpful and friendly Python coding assistant.
       **Core Instructions**:
       1.  **Relevance Rule**: If the user's last question is NOT about Python programming, concepts, libraries, code, or a direct follow-up, you MUST politely decline. State that you are a Python-only assistant. Do not answer the off-topic question.
       2.  **Formatting Rule**: For all relevant answers, you MUST structure your response in two parts separated by '---LEARN-MORE---'.
@@ -223,11 +228,11 @@ function PythonCompiler() {
       };
       setChatMessages(prevMessages => [...prevMessages, botResponse]);
     } catch (error) {
-      console.error("Error in chatbot response:", error);
       const errorResponse = { role: 'assistant', shortContent: "Sorry, I encountered an error.", expandedContent: null, isExpanded: false };
       setChatMessages(prevMessages => [...prevMessages, errorResponse]);
     }
   };
+
   return (
     <div className="code-learning-platform">
       <Header />
@@ -245,9 +250,7 @@ function PythonCompiler() {
                 <button
                   onClick={() => setViewMode('line-by-line')}
                   disabled={explanationData.length === 0 || isGeneratingExplanation}
-                  className={`py-2 px-4 rounded ${viewMode === 'line-by-line'
-                      ? 'bg-indigo-100 text-indigo-800'
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
+                  className={`py-2 px-4 rounded ${viewMode === 'line-by-line' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
                 >
                   Line Explanation
                 </button>
@@ -261,9 +264,7 @@ function PythonCompiler() {
                 <button
                   onClick={() => setViewMode('animated')}
                   disabled={explanationData.length === 0 || isGeneratingExplanation}
-                  className={`py-2 px-4 rounded ${viewMode === 'animated'
-                      ? 'bg-indigo-100 text-indigo-800'
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
+                  className={`py-2 px-4 rounded ${viewMode === 'animated' ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} disabled:pointer-events-none`}
                 >
                   Animation
                 </button>
@@ -294,7 +295,7 @@ function PythonCompiler() {
       <div className="fixed bottom-4 right-4 z-50">
         {!showChatbot ? (
           <button onClick={() => setShowChatbot(true)} className="bg-indigo-600 text-white p-3 rounded-full shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center h-16 w-16">
-            <div className='absolute'>
+            <div className="absolute">
               <MessageSquare size={30} className="text-white" />
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full">
                 <span className="absolute top-0 left-0 w-full h-full rounded-full bg-green-400 animate-ping opacity-75"></span>
@@ -317,4 +318,5 @@ function PythonCompiler() {
     </div>
   );
 }
+
 export default PythonCompiler;
